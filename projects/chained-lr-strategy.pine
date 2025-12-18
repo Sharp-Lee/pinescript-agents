@@ -383,14 +383,6 @@ var int chainCount = 0  // How many times we've chained (0 = original only)
 var bool wasAboveThreshold = false
 var int lastBarAboveThreshold = na
 
-// Arrays to store historical chained regressions for drawing (DEPRECATED - will be removed)
-var array<float> chainedSlopes = array.new<float>()
-var array<float> chainedIntercepts = array.new<float>()
-var array<float> chainedStdDevs = array.new<float>()
-var array<int> chainedFirstBars = array.new<int>()
-var array<int> chainedLastBars = array.new<int>()
-var array<float> chainedPearsonRs = array.new<float>()
-
 // ============================================================================
 // UDT-BASED STORAGE (new architecture)
 // ============================================================================
@@ -485,17 +477,9 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
 
         // R dropped below threshold after being above - LOCK the dynamic as new static
         if wasAboveThreshold and not currentAboveThreshold and not na(lastBarAboveThreshold)
-            // Store the current static in the chained arrays before replacing
+            // Store the current static in the regressions array before replacing
             // Skip if chainCount=0 since original regression is already drawn separately
             if chainCount > 0
-                array.push(chainedSlopes, currentStaticSlope)
-                array.push(chainedIntercepts, currentStaticIntercept)
-                array.push(chainedStdDevs, currentStaticStdDev)
-                array.push(chainedFirstBars, currentStaticFirstBar)
-                array.push(chainedLastBars, currentStaticLastBar)
-                array.push(chainedPearsonRs, currentStaticPearsonR)
-
-                // Also push to UDT array
                 lockedReg = Regression.new(startTime=currentStaticFirstTime, endTime=currentStaticLastTime, startBarIndex=currentStaticFirstBar, endBarIndex=currentStaticLastBar, slope=currentStaticSlope, intercept=currentStaticIntercept, stdDev=currentStaticStdDev, pearsonR=currentStaticPearsonR, isLive=false, isOriginal=false)
                 array.push(regressions, lockedReg)
 
@@ -547,16 +531,8 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
     // =========================================================================
     if isDynamicActive and not wasAboveThreshold and liveRangeSize >= maxBarsTimeout
         // Timeout reached without ever hitting R threshold
-        // Store current static in chained arrays (skip if chainCount=0 to avoid duplicate of original)
+        // Store current static in regressions array (skip if chainCount=0 to avoid duplicate of original)
         if chainCount > 0
-            array.push(chainedSlopes, currentStaticSlope)
-            array.push(chainedIntercepts, currentStaticIntercept)
-            array.push(chainedStdDevs, currentStaticStdDev)
-            array.push(chainedFirstBars, currentStaticFirstBar)
-            array.push(chainedLastBars, currentStaticLastBar)
-            array.push(chainedPearsonRs, currentStaticPearsonR)
-
-            // Also push to UDT array
             lockedReg = Regression.new(startTime=currentStaticFirstTime, endTime=currentStaticLastTime, startBarIndex=currentStaticFirstBar, endBarIndex=currentStaticLastBar, slope=currentStaticSlope, intercept=currentStaticIntercept, stdDev=currentStaticStdDev, pearsonR=currentStaticPearsonR, isLive=false, isOriginal=false)
             array.push(regressions, lockedReg)
 
