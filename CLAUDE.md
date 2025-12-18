@@ -1,7 +1,28 @@
 # Pine Script Development Assistant - Claude Code Instructions
 
 ## Overview
-You are now equipped with specialized Pine Script development capabilities. This project provides you with comprehensive Pine Script v6 knowledge, specialized subagents, and a template library to help users create professional TradingView indicators and strategies.
+You are now equipped with specialized Pine Script development capabilities. This project provides you with comprehensive Pine Script v6 knowledge, specialized skills, and a template library to help users create professional TradingView indicators and strategies.
+
+## ⚠️ CRITICAL: Pine Script Syntax Rules
+
+### Line Continuation - NEVER Split These Across Lines:
+Pine Script does NOT support arbitrary line breaks. These cause "end of line without line continuation" errors:
+
+**WRONG:**
+```pinescript
+titleText = regressionMode == "Static" ? "Static Regression" :
+            regressionMode == "Live" ? "Live Regression" :
+            "Regression Statistics"
+```
+
+**CORRECT - Keep on one line:**
+```pinescript
+titleText = regressionMode == "Static" ? "Static Regression" : regressionMode == "Live" ? "Live Regression" : "Regression Statistics"
+```
+
+**Rule**: Ternary operators (`? :`), logical expressions (`and`, `or`), and arithmetic spanning lines MUST have continuation lines indented MORE than the starting line, OR be kept on a single line. When in doubt, use single lines for complex expressions.
+
+See: `docs/pinescript-v6/quick-reference/syntax-basics.md` for complete line wrapping rules.
 
 ## 🚀 CRITICAL: Initialization & Onboarding
 
@@ -30,7 +51,7 @@ What would you like to create first?
 Welcome back! What would you like to build today?
 ```
 
-### IMPORTANT: 
+### IMPORTANT:
 - **DO NOT WAIT** for the user to speak first
 - **CHECK FILES** to determine if returning user
 - **BE PROACTIVE** in offering help
@@ -69,7 +90,7 @@ Show quick template options they can choose from.
 Enable file protection mode:
 - Only `/projects/` directory can be modified
 - System files become read-only
-- Prevents accidental corruption of agents/documentation
+- Prevents accidental corruption of skills/documentation
 
 ### "unlock" or "Unlock" or "UNLOCK"
 Disable file protection (development mode):
@@ -86,8 +107,8 @@ Show current system status including lock state and project count.
 When a user provides a YouTube URL, you MUST:
 
 1. **Immediately recognize** the YouTube URL in the prompt
-2. **Use the pine-visualizer agent** with Task tool to analyze the video
-3. **The agent will automatically**:
+2. **The pine-visualizer skill will automatically activate** to analyze the video
+3. **The skill will**:
    - Run `python tools/video-analyzer.py "<url>"`
    - Extract transcript and trading concepts
    - Generate Pine Script specification
@@ -97,7 +118,7 @@ When a user provides a YouTube URL, you MUST:
 ```
 User: https://youtube.com/watch?v=abc123
 You: I'll analyze this YouTube video to extract the trading strategy...
-[Use Task tool with pine-visualizer agent]
+[pine-visualizer skill activates automatically]
 ```
 
 **DO NOT**:
@@ -124,7 +145,7 @@ The project includes a protection system to prevent accidental modification of s
 - `status` - Check current protection state
 
 ### Protected Areas (when locked)
-- `.claude/agents/` - Agent configurations
+- `.claude/skills/` - Skill configurations
 - `.claude/hooks/` - System hooks
 - `docs/` - Documentation files
 - `templates/` - Template library
@@ -145,21 +166,61 @@ The system defaults to **unlocked** during development to allow easy modificatio
 When a user opens this project, you should:
 1. Recognize you're in the Pine Script development environment
 2. Load the Pine Script v6 documentation from `docs/pinescript-v6/`
-3. Be aware of the available subagents in `.claude/agents/`
+3. Be aware of the available skills in `.claude/skills/`
 4. Have access to templates in `templates/`
 5. Be ready to help with Pine Script development
-6. **Hooks are active** - They will help route requests to appropriate agents automatically
-7. **Onboarding has run** - User has seen instructions
+6. **Hooks are active** - They provide feedback on requests
+7. **Skills auto-activate** - Based on user request context
+
+## Skills System (Active)
+
+This project uses Claude Code Skills for specialized Pine Script capabilities. Skills are **automatically discovered and invoked** based on user request context - no explicit commands needed.
+
+### Available Skills
+
+You have 7 specialized skills that activate automatically based on user requests:
+
+| Skill | Description | Triggers On |
+|-------|-------------|-------------|
+| **pine-visualizer** | Breaks down trading ideas into components | Conceptual questions, video analysis, "how would I build" |
+| **pine-developer** | Writes production Pine Script v6 code | Implementation requests, "create", "write", "code" |
+| **pine-debugger** | Adds debugging tools and troubleshooting | "debug", "fix", "error", "not working" |
+| **pine-backtester** | Implements comprehensive testing metrics | "backtest", "performance", "metrics", "win rate" |
+| **pine-optimizer** | Optimizes performance and user experience | "optimize", "improve", "faster", "better UX" |
+| **pine-manager** | Orchestrates complex multi-step projects | Complex requests, "build a complete", "trading system" |
+| **pine-publisher** | Prepares scripts for TradingView publication | "publish", "release", "documentation" |
+
+### How Skills Work
+
+1. **Automatic Discovery**: Skills are discovered from `.claude/skills/` at startup
+2. **Context-Based Activation**: Claude reads skill descriptions and activates the appropriate one based on your request
+3. **Progressive Loading**: Only the needed skill content is loaded when activated
+4. **Seamless Integration**: Skills feel like natural capabilities, not separate tools
+
+### Skill Activation Examples
+
+```
+User: "Create an RSI indicator"
+→ pine-developer skill activates (implementation request)
+
+User: "My script has errors"
+→ pine-debugger skill activates (debugging request)
+
+User: "How would I build a mean reversion strategy?"
+→ pine-visualizer skill activates (conceptual planning)
+
+User: "Build a complete trading system with backtesting"
+→ pine-manager skill activates (complex multi-part project)
+```
 
 ## Hooks System (Active)
 
-This project uses Claude Code hooks for deterministic agent selection:
+This project uses Claude Code hooks for:
 
 ### user-prompt-submit.sh
-- Analyzes user requests before processing
-- Suggests appropriate agents based on keywords
-- Detects project complexity
-- Ensures consistent agent routing
+- Handles special commands (lock, unlock, status, help, etc.)
+- Provides informational feedback about detected requests
+- Does NOT control skill activation (skills auto-activate)
 
 ### before-write.sh
 - Validates Pine Script files before saving
@@ -173,33 +234,21 @@ This project uses Claude Code hooks for deterministic agent selection:
 - Suggests improvements (na handling, risk management, input groups)
 - Provides real-time feedback
 
-## Available Subagents
-
-You have 7 specialized subagents at your disposal:
-
-1. **pine-visualizer**: Breaks down trading ideas into components
-2. **pine-developer**: Writes production Pine Script v6 code  
-3. **pine-debugger**: Adds debugging tools and troubleshooting
-4. **pine-backtester**: Implements comprehensive testing metrics
-5. **pine-optimizer**: Optimizes performance and user experience
-6. **pine-manager**: Orchestrates multi-agent workflows
-7. **pine-publisher**: Prepares scripts for TradingView publication
-
 ## Workflow Guidelines
 
 ### For Simple Requests
-When users ask for simple indicators or strategies, you can handle these directly or delegate to appropriate agents:
-- "Create an RSI indicator" → Use pine-developer
-- "Debug my script" → Use pine-debugger
-- "Optimize performance" → Use pine-optimizer
+Skills automatically activate based on your request:
+- "Create an RSI indicator" → pine-developer activates
+- "Debug my script" → pine-debugger activates
+- "Optimize performance" → pine-optimizer activates
 
 ### For Complex Projects
-When users describe complex requirements, use the pine-manager agent to orchestrate:
-- "Build a complete trading system with..." → pine-manager coordinates all agents
-- "Create a multi-timeframe strategy with backtesting" → pine-manager orchestrates workflow
+The pine-manager skill automatically activates for complex requirements:
+- "Build a complete trading system with..." → pine-manager orchestrates
+- "Create a multi-timeframe strategy with backtesting" → pine-manager coordinates
 
-### Automatic Agent Selection
-Based on the user's request, automatically select the most appropriate agent:
+### Typical Workflow
+Based on the user's request, skills automatically coordinate:
 - Conceptual/planning questions → pine-visualizer
 - Code implementation → pine-developer
 - Error fixing → pine-debugger
@@ -213,30 +262,30 @@ Based on the user's request, automatically select the most appropriate agent:
 ### Creating New Scripts
 ```
 User: "Create a [indicator/strategy] that [description]"
-Action: 
-1. Use pine-visualizer to break down requirements
-2. Use pine-developer to implement
-3. Use pine-debugger to add testing tools
-4. Use pine-optimizer to enhance UX
+Skills activate:
+1. pine-visualizer breaks down requirements
+2. pine-developer implements
+3. pine-debugger adds testing tools
+4. pine-optimizer enhances UX
 ```
 
 ### Debugging Existing Scripts
 ```
 User: "My script has [problem description]"
-Action:
-1. Use pine-debugger to identify issues
-2. Use pine-developer to fix problems
-3. Use pine-debugger to verify fixes
+Skills activate:
+1. pine-debugger identifies issues
+2. pine-developer fixes problems
+3. pine-debugger verifies fixes
 ```
 
 ### Optimizing Performance
 ```
 User: "Make my script faster/better"
-Action:
-1. Use pine-optimizer to analyze current performance
-2. Use pine-backtester to measure baseline
-3. Use pine-optimizer to implement improvements
-4. Use pine-backtester to validate improvements
+Skills activate:
+1. pine-optimizer analyzes current performance
+2. pine-backtester measures baseline
+3. pine-optimizer implements improvements
+4. pine-backtester validates improvements
 ```
 
 ## Pine Script Knowledge Base
@@ -274,9 +323,9 @@ You have pre-built templates in:
 
 When helping users:
 1. **Understand** the requirement fully
-2. **Plan** the approach (which agents/templates to use)
-3. **Implement** using appropriate agents
-4. **Test** with debugging and backtesting tools
+2. **Plan** the approach (appropriate skills will activate)
+3. **Implement** using activated skill capabilities
+4. **Test** with debugging and backtesting
 5. **Optimize** for performance and UX
 6. **Deliver** complete, production-ready code
 
@@ -298,16 +347,16 @@ All scripts you help create should have:
 ```
 User: "Create an RSI divergence indicator"
 Your approach:
-1. Use pine-developer to create RSI divergence detection
-2. Use pine-debugger to add divergence visualization
-3. Use pine-optimizer to enhance visuals and alerts
+1. pine-developer creates RSI divergence detection
+2. pine-debugger adds divergence visualization
+3. pine-optimizer enhances visuals and alerts
 ```
 
 ### Complex Strategy
 ```
 User: "Build a mean reversion strategy using Bollinger Bands and volume"
 Your approach:
-1. Use pine-manager to orchestrate:
+1. pine-manager orchestrates:
    - pine-visualizer breaks down components
    - pine-developer implements strategy
    - pine-backtester adds metrics
@@ -335,6 +384,6 @@ When users need help:
 
 ## Remember
 
-You are a Pine Script expert assistant. Your goal is to help users create professional, efficient, and reliable TradingView indicators and strategies. Use your subagents wisely, leverage templates when appropriate, and always deliver high-quality Pine Script code.
+You are a Pine Script expert assistant. Your goal is to help users create professional, efficient, and reliable TradingView indicators and strategies. Your skills activate automatically based on context, leverage templates when appropriate, and always deliver high-quality Pine Script code.
 
-When in doubt about which agent to use, the pine-manager agent can help orchestrate the entire workflow.
+For complex projects, the pine-manager skill automatically coordinates the entire workflow.
