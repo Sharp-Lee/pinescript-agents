@@ -5,7 +5,6 @@ strategy("Chained Linear Regression Reversal Strategy",
      shorttitle="Chain LR Strategy",
      overlay=true,
      max_lines_count=500,
-     max_bars_back=5000,
      initial_capital=100000,
      default_qty_type=strategy.fixed,
      default_qty_value=1,
@@ -669,9 +668,10 @@ if shouldRedraw
 
 // Draw ORIGINAL regression (always show as the first/base regression)
 if showStatic and origRangeSize >= 2 and shouldRedraw
-    // Clamp bar indices to historical buffer limit to prevent runtime errors
-    drawFirstBar = math.max(origFirstBarIndex, bar_index - 5000)
-    drawLastBar = origLastBarIndex
+    // Clamp bar indices to available history (last_bar_index is total bars on chart)
+    maxLookback = math.min(last_bar_index, 5000)
+    drawFirstBar = math.max(origFirstBarIndex, bar_index - maxLookback)
+    drawLastBar = math.max(origLastBarIndex, bar_index - maxLookback)
 
     origStartY = origSlope * drawFirstBar + origIntercept
     origEndY = origSlope * drawLastBar + origIntercept
@@ -718,9 +718,10 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
         cFirstBar = array.get(chainedFirstBars, i)
         cLastBar = array.get(chainedLastBars, i)
 
-        // Clamp bar indices to historical buffer limit
-        cDrawFirstBar = math.max(cFirstBar, bar_index - 5000)
-        cDrawLastBar = cLastBar
+        // Clamp bar indices to available history
+        cMaxLookback = math.min(last_bar_index, 5000)
+        cDrawFirstBar = math.max(cFirstBar, bar_index - cMaxLookback)
+        cDrawLastBar = math.max(cLastBar, bar_index - cMaxLookback)
 
         cStartY = cSlope * cDrawFirstBar + cIntercept
         cEndY = cSlope * cDrawLastBar + cIntercept
@@ -766,9 +767,10 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
 // Draw CURRENT STATIC regression (the most recent locked regression used for breakout detection)
 // Only draw if it's different from original (i.e., we've chained at least once)
 if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
-    // Clamp bar indices to historical buffer limit
-    csDrawFirstBar = math.max(currentStaticFirstBar, bar_index - 5000)
-    csDrawLastBar = currentStaticLastBar
+    // Clamp bar indices to available history
+    csMaxLookback = math.min(last_bar_index, 5000)
+    csDrawFirstBar = math.max(currentStaticFirstBar, bar_index - csMaxLookback)
+    csDrawLastBar = math.max(currentStaticLastBar, bar_index - csMaxLookback)
 
     csStartY = currentStaticSlope * csDrawFirstBar + currentStaticIntercept
     csEndY = currentStaticSlope * csDrawLastBar + currentStaticIntercept
@@ -808,9 +810,10 @@ if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
 
 // Draw LIVE regression and channel lines (only when dynamic is active after breakout)
 if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
-    // Clamp bar indices to historical buffer limit
-    liveDrawFirstBar = math.max(liveFirstBarIndex, bar_index - 5000)
-    liveDrawLastBar = liveLastBarIndex
+    // Clamp bar indices to available history
+    liveMaxLookback = math.min(last_bar_index, 5000)
+    liveDrawFirstBar = math.max(liveFirstBarIndex, bar_index - liveMaxLookback)
+    liveDrawLastBar = math.max(liveLastBarIndex, bar_index - liveMaxLookback)
 
     // Calculate regression values at start and end points
     liveStartY = liveSlope * liveDrawFirstBar + liveIntercept
