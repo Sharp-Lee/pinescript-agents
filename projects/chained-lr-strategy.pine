@@ -1,4 +1,5 @@
 //@version=6
+//@strategy_alert_message {{strategy.order.alert_message}}
 strategy("Chained Linear Regression Reversal Strategy",
      shorttitle="Chain LR Strategy",
      overlay=true,
