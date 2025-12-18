@@ -670,7 +670,7 @@ if showStatic and origRangeSize >= 2 and shouldRedraw
 
     // Determine color based on slope direction
     origBaseColor = origSlope >= 0 ? uptrendColor : downtrendColor
-    origLineColor = origBaseColor.hue(color.white, 20)
+    origLineColor = color.new(origBaseColor, 40)
     origFillColor = color.new(origBaseColor, fillTransparency)
 
     origRegressionLine := line.new(origFirstBarIndex, origStartY,
@@ -715,7 +715,7 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
 
         // Determine color based on slope direction
         cBaseColor = cSlope >= 0 ? uptrendColor : downtrendColor
-        cLineColor = cBaseColor.hue(color.white, 20)
+        cLineColor = color.new(cBaseColor, 40)
         cFillColor = color.new(cBaseColor, fillTransparency)
 
         cLine = line.new(cFirstBar, cStartY, cLastBar, cEndY,
@@ -759,7 +759,7 @@ if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
 
     // Determine color based on slope direction
     csBaseColor = currentStaticSlope >= 0 ? uptrendColor : downtrendColor
-    csLineColor = csBaseColor.hue(color.white, 20)
+    csLineColor = color.new(csBaseColor, 40)
     csFillColor = color.new(csBaseColor, fillTransparency)
 
     currentStaticLine := line.new(currentStaticFirstBar, csStartY,
@@ -798,7 +798,7 @@ if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
 
     // Determine color based on slope direction
     liveBaseColor = liveSlope >= 0 ? uptrendColor : downtrendColor
-    liveLineColor = liveBaseColor.hue(color.white, 20)
+    liveLineColor = color.new(liveBaseColor, 40)
     liveFillColor = color.new(liveBaseColor, fillTransparency)
 
     // Draw main live regression line
