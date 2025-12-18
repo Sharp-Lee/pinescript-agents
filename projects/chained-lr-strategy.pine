@@ -59,7 +59,7 @@ showUpperChannel = input.bool(true,
      inline="upper",
      group="Regression Settings")
 
-upperDeviation = input.float(2.0,
+upperDeviation = input.float(3.0,
      "",
      minval=0.1,
      step=0.1,
@@ -72,7 +72,7 @@ showLowerChannel = input.bool(true,
      inline="lower",
      group="Regression Settings")
 
-lowerDeviation = input.float(2.0,
+lowerDeviation = input.float(3.0,
      "",
      minval=0.1,
      step=0.1,
@@ -376,12 +376,14 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
         // R dropped below threshold after being above - LOCK the dynamic as new static
         if wasAboveThreshold and not currentAboveThreshold and not na(lastBarAboveThreshold)
             // Store the current static in the chained arrays before replacing
-            array.push(chainedSlopes, currentStaticSlope)
-            array.push(chainedIntercepts, currentStaticIntercept)
-            array.push(chainedStdDevs, currentStaticStdDev)
-            array.push(chainedFirstBars, currentStaticFirstBar)
-            array.push(chainedLastBars, currentStaticLastBar)
-            array.push(chainedPearsonRs, currentStaticPearsonR)
+            // Skip if chainCount=0 since original regression is already drawn separately
+            if chainCount > 0
+                array.push(chainedSlopes, currentStaticSlope)
+                array.push(chainedIntercepts, currentStaticIntercept)
+                array.push(chainedStdDevs, currentStaticStdDev)
+                array.push(chainedFirstBars, currentStaticFirstBar)
+                array.push(chainedLastBars, currentStaticLastBar)
+                array.push(chainedPearsonRs, currentStaticPearsonR)
 
             // Calculate regression values at the bar BEFORE R dropped (lastBarAboveThreshold)
             // We need to recalculate with data up to that point
@@ -421,13 +423,14 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
     // =========================================================================
     if isDynamicActive and not wasAboveThreshold and liveRangeSize >= maxBarsTimeout
         // Timeout reached without ever hitting R threshold
-        // Store current static in chained arrays
-        array.push(chainedSlopes, currentStaticSlope)
-        array.push(chainedIntercepts, currentStaticIntercept)
-        array.push(chainedStdDevs, currentStaticStdDev)
-        array.push(chainedFirstBars, currentStaticFirstBar)
-        array.push(chainedLastBars, currentStaticLastBar)
-        array.push(chainedPearsonRs, currentStaticPearsonR)
+        // Store current static in chained arrays (skip if chainCount=0 to avoid duplicate of original)
+        if chainCount > 0
+            array.push(chainedSlopes, currentStaticSlope)
+            array.push(chainedIntercepts, currentStaticIntercept)
+            array.push(chainedStdDevs, currentStaticStdDev)
+            array.push(chainedFirstBars, currentStaticFirstBar)
+            array.push(chainedLastBars, currentStaticLastBar)
+            array.push(chainedPearsonRs, currentStaticPearsonR)
 
         // Start fresh regression from current bar
         // Use the live regression data as the new static (even with low R)
