@@ -677,7 +677,7 @@ if showStatic and origRangeSize >= 2 and shouldRedraw
          origLastBarIndex, origEndY,
          color=origLineColor,
          width=lineWidth,
-         style=line.style_solid)
+         style=line.style_dashed)
 
     if showUpperChannel
         origUpperStartY = origStartY + upperDeviation * origStdDev
@@ -721,7 +721,7 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
         cLine = line.new(cFirstBar, cStartY, cLastBar, cEndY,
              color=cLineColor,
              width=lineWidth,
-             style=line.style_solid)
+             style=line.style_dashed)
         array.push(chainedLines, cLine)
 
         // Track upper/lower lines for fill
@@ -766,7 +766,7 @@ if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
          currentStaticLastBar, csEndY,
          color=csLineColor,
          width=lineWidth,
-         style=line.style_solid)
+         style=line.style_dashed)
 
     if showUpperChannel
         csUpperStartY = csStartY + upperDeviation * currentStaticStdDev
