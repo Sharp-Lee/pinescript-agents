@@ -668,46 +668,48 @@ if shouldRedraw
 
 // Draw ORIGINAL regression (always show as the first/base regression)
 if showStatic and origRangeSize >= 2 and shouldRedraw
-    // Clamp bar indices to available history (last_bar_index is total bars on chart)
-    maxLookback = math.min(last_bar_index, 5000)
-    drawFirstBar = math.max(origFirstBarIndex, bar_index - maxLookback)
-    drawLastBar = math.max(origLastBarIndex, bar_index - maxLookback)
+    // Clamp start bar to accessible history, keep end bar as-is
+    minAccessibleBar = bar_index - math.min(last_bar_index, 5000)
+    drawFirstBar = math.max(origFirstBarIndex, minAccessibleBar)
+    drawLastBar = origLastBarIndex
 
-    origStartY = origSlope * drawFirstBar + origIntercept
-    origEndY = origSlope * drawLastBar + origIntercept
+    // Only draw if we have a valid range (end is after start)
+    if drawLastBar > drawFirstBar
+        origStartY = origSlope * drawFirstBar + origIntercept
+        origEndY = origSlope * drawLastBar + origIntercept
 
-    // Determine color based on slope direction
-    origBaseColor = origSlope >= 0 ? uptrendColor : downtrendColor
-    origLineColor = color.new(origBaseColor, 40)
-    origFillColor = color.new(origBaseColor, fillTransparency)
+        // Determine color based on slope direction
+        origBaseColor = origSlope >= 0 ? uptrendColor : downtrendColor
+        origLineColor = color.new(origBaseColor, 40)
+        origFillColor = color.new(origBaseColor, fillTransparency)
 
-    origRegressionLine := line.new(drawFirstBar, origStartY,
-         drawLastBar, origEndY,
-         color=origLineColor,
-         width=lineWidth,
-         style=line.style_dashed)
-
-    if showUpperChannel
-        origUpperStartY = origStartY + upperDeviation * origStdDev
-        origUpperEndY = origEndY + upperDeviation * origStdDev
-        origUpperChannelLine := line.new(drawFirstBar, origUpperStartY,
-             drawLastBar, origUpperEndY,
+        origRegressionLine := line.new(drawFirstBar, origStartY,
+             drawLastBar, origEndY,
              color=origLineColor,
              width=lineWidth,
-             style=line.style_solid)
+             style=line.style_dashed)
 
-    if showLowerChannel
-        origLowerStartY = origStartY - lowerDeviation * origStdDev
-        origLowerEndY = origEndY - lowerDeviation * origStdDev
-        origLowerChannelLine := line.new(drawFirstBar, origLowerStartY,
-             drawLastBar, origLowerEndY,
-             color=origLineColor,
-             width=lineWidth,
-             style=line.style_solid)
+        if showUpperChannel
+            origUpperStartY = origStartY + upperDeviation * origStdDev
+            origUpperEndY = origEndY + upperDeviation * origStdDev
+            origUpperChannelLine := line.new(drawFirstBar, origUpperStartY,
+                 drawLastBar, origUpperEndY,
+                 color=origLineColor,
+                 width=lineWidth,
+                 style=line.style_solid)
 
-    if showUpperChannel and showLowerChannel
-        origChannelFill := linefill.new(origUpperChannelLine, origLowerChannelLine,
-             color=origFillColor)
+        if showLowerChannel
+            origLowerStartY = origStartY - lowerDeviation * origStdDev
+            origLowerEndY = origEndY - lowerDeviation * origStdDev
+            origLowerChannelLine := line.new(drawFirstBar, origLowerStartY,
+                 drawLastBar, origLowerEndY,
+                 color=origLineColor,
+                 width=lineWidth,
+                 style=line.style_solid)
+
+        if showUpperChannel and showLowerChannel
+            origChannelFill := linefill.new(origUpperChannelLine, origLowerChannelLine,
+                 color=origFillColor)
 
 // Draw CHAINED regressions (historical locked regressions)
 if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
@@ -718,144 +720,150 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
         cFirstBar = array.get(chainedFirstBars, i)
         cLastBar = array.get(chainedLastBars, i)
 
-        // Clamp bar indices to available history
-        cMaxLookback = math.min(last_bar_index, 5000)
-        cDrawFirstBar = math.max(cFirstBar, bar_index - cMaxLookback)
-        cDrawLastBar = math.max(cLastBar, bar_index - cMaxLookback)
+        // Clamp start bar to accessible history, keep end bar as-is
+        cMinAccessibleBar = bar_index - math.min(last_bar_index, 5000)
+        cDrawFirstBar = math.max(cFirstBar, cMinAccessibleBar)
+        cDrawLastBar = cLastBar
 
-        cStartY = cSlope * cDrawFirstBar + cIntercept
-        cEndY = cSlope * cDrawLastBar + cIntercept
+        // Only draw if we have a valid range
+        if cDrawLastBar > cDrawFirstBar
+            cStartY = cSlope * cDrawFirstBar + cIntercept
+            cEndY = cSlope * cDrawLastBar + cIntercept
 
-        // Determine color based on slope direction
-        cBaseColor = cSlope >= 0 ? uptrendColor : downtrendColor
-        cLineColor = color.new(cBaseColor, 40)
-        cFillColor = color.new(cBaseColor, fillTransparency)
+            // Determine color based on slope direction
+            cBaseColor = cSlope >= 0 ? uptrendColor : downtrendColor
+            cLineColor = color.new(cBaseColor, 40)
+            cFillColor = color.new(cBaseColor, fillTransparency)
 
-        cLine = line.new(cDrawFirstBar, cStartY, cDrawLastBar, cEndY,
-             color=cLineColor,
-             width=lineWidth,
-             style=line.style_dashed)
-        array.push(chainedLines, cLine)
-
-        // Track upper/lower lines for fill
-        line cUpperLine = na
-        line cLowerLine = na
-
-        if showUpperChannel
-            cUpperStartY = cStartY + upperDeviation * cStdDev
-            cUpperEndY = cEndY + upperDeviation * cStdDev
-            cUpperLine := line.new(cDrawFirstBar, cUpperStartY, cDrawLastBar, cUpperEndY,
+            cLine = line.new(cDrawFirstBar, cStartY, cDrawLastBar, cEndY,
                  color=cLineColor,
                  width=lineWidth,
-                 style=line.style_solid)
-            array.push(chainedUpperLines, cUpperLine)
+                 style=line.style_dashed)
+            array.push(chainedLines, cLine)
 
-        if showLowerChannel
-            cLowerStartY = cStartY - lowerDeviation * cStdDev
-            cLowerEndY = cEndY - lowerDeviation * cStdDev
-            cLowerLine := line.new(cDrawFirstBar, cLowerStartY, cDrawLastBar, cLowerEndY,
-                 color=cLineColor,
-                 width=lineWidth,
-                 style=line.style_solid)
-            array.push(chainedLowerLines, cLowerLine)
+            // Track upper/lower lines for fill
+            line cUpperLine = na
+            line cLowerLine = na
 
-        // Add fill between channels
-        if showUpperChannel and showLowerChannel and not na(cUpperLine) and not na(cLowerLine)
-            cFill = linefill.new(cUpperLine, cLowerLine, color=cFillColor)
-            array.push(chainedFills, cFill)
+            if showUpperChannel
+                cUpperStartY = cStartY + upperDeviation * cStdDev
+                cUpperEndY = cEndY + upperDeviation * cStdDev
+                cUpperLine := line.new(cDrawFirstBar, cUpperStartY, cDrawLastBar, cUpperEndY,
+                     color=cLineColor,
+                     width=lineWidth,
+                     style=line.style_solid)
+                array.push(chainedUpperLines, cUpperLine)
+
+            if showLowerChannel
+                cLowerStartY = cStartY - lowerDeviation * cStdDev
+                cLowerEndY = cEndY - lowerDeviation * cStdDev
+                cLowerLine := line.new(cDrawFirstBar, cLowerStartY, cDrawLastBar, cLowerEndY,
+                     color=cLineColor,
+                     width=lineWidth,
+                     style=line.style_solid)
+                array.push(chainedLowerLines, cLowerLine)
+
+            // Add fill between channels
+            if showUpperChannel and showLowerChannel and not na(cUpperLine) and not na(cLowerLine)
+                cFill = linefill.new(cUpperLine, cLowerLine, color=cFillColor)
+                array.push(chainedFills, cFill)
 
 // Draw CURRENT STATIC regression (the most recent locked regression used for breakout detection)
 // Only draw if it's different from original (i.e., we've chained at least once)
 if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
-    // Clamp bar indices to available history
-    csMaxLookback = math.min(last_bar_index, 5000)
-    csDrawFirstBar = math.max(currentStaticFirstBar, bar_index - csMaxLookback)
-    csDrawLastBar = math.max(currentStaticLastBar, bar_index - csMaxLookback)
+    // Clamp start bar to accessible history, keep end bar as-is
+    csMinAccessibleBar = bar_index - math.min(last_bar_index, 5000)
+    csDrawFirstBar = math.max(currentStaticFirstBar, csMinAccessibleBar)
+    csDrawLastBar = currentStaticLastBar
 
-    csStartY = currentStaticSlope * csDrawFirstBar + currentStaticIntercept
-    csEndY = currentStaticSlope * csDrawLastBar + currentStaticIntercept
+    // Only draw if we have a valid range
+    if csDrawLastBar > csDrawFirstBar
+        csStartY = currentStaticSlope * csDrawFirstBar + currentStaticIntercept
+        csEndY = currentStaticSlope * csDrawLastBar + currentStaticIntercept
 
-    // Determine color based on slope direction
-    csBaseColor = currentStaticSlope >= 0 ? uptrendColor : downtrendColor
-    csLineColor = color.new(csBaseColor, 40)
-    csFillColor = color.new(csBaseColor, fillTransparency)
+        // Determine color based on slope direction
+        csBaseColor = currentStaticSlope >= 0 ? uptrendColor : downtrendColor
+        csLineColor = color.new(csBaseColor, 40)
+        csFillColor = color.new(csBaseColor, fillTransparency)
 
-    currentStaticLine := line.new(csDrawFirstBar, csStartY,
-         csDrawLastBar, csEndY,
-         color=csLineColor,
-         width=lineWidth,
-         style=line.style_dashed)
-
-    if showUpperChannel
-        csUpperStartY = csStartY + upperDeviation * currentStaticStdDev
-        csUpperEndY = csEndY + upperDeviation * currentStaticStdDev
-        currentStaticUpperLine := line.new(csDrawFirstBar, csUpperStartY,
-             csDrawLastBar, csUpperEndY,
+        currentStaticLine := line.new(csDrawFirstBar, csStartY,
+             csDrawLastBar, csEndY,
              color=csLineColor,
              width=lineWidth,
-             style=line.style_solid)
+             style=line.style_dashed)
 
-    if showLowerChannel
-        csLowerStartY = csStartY - lowerDeviation * currentStaticStdDev
-        csLowerEndY = csEndY - lowerDeviation * currentStaticStdDev
-        currentStaticLowerLine := line.new(csDrawFirstBar, csLowerStartY,
-             csDrawLastBar, csLowerEndY,
-             color=csLineColor,
-             width=lineWidth,
-             style=line.style_solid)
+        if showUpperChannel
+            csUpperStartY = csStartY + upperDeviation * currentStaticStdDev
+            csUpperEndY = csEndY + upperDeviation * currentStaticStdDev
+            currentStaticUpperLine := line.new(csDrawFirstBar, csUpperStartY,
+                 csDrawLastBar, csUpperEndY,
+                 color=csLineColor,
+                 width=lineWidth,
+                 style=line.style_solid)
 
-    if showUpperChannel and showLowerChannel
-        currentStaticFill := linefill.new(currentStaticUpperLine, currentStaticLowerLine,
-             color=csFillColor)
+        if showLowerChannel
+            csLowerStartY = csStartY - lowerDeviation * currentStaticStdDev
+            csLowerEndY = csEndY - lowerDeviation * currentStaticStdDev
+            currentStaticLowerLine := line.new(csDrawFirstBar, csLowerStartY,
+                 csDrawLastBar, csLowerEndY,
+                 color=csLineColor,
+                 width=lineWidth,
+                 style=line.style_solid)
+
+        if showUpperChannel and showLowerChannel
+            currentStaticFill := linefill.new(currentStaticUpperLine, currentStaticLowerLine,
+                 color=csFillColor)
 
 // Draw LIVE regression and channel lines (only when dynamic is active after breakout)
 if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
-    // Clamp bar indices to available history
-    liveMaxLookback = math.min(last_bar_index, 5000)
-    liveDrawFirstBar = math.max(liveFirstBarIndex, bar_index - liveMaxLookback)
-    liveDrawLastBar = math.max(liveLastBarIndex, bar_index - liveMaxLookback)
+    // Clamp start bar to accessible history, keep end bar as-is
+    liveMinAccessibleBar = bar_index - math.min(last_bar_index, 5000)
+    liveDrawFirstBar = math.max(liveFirstBarIndex, liveMinAccessibleBar)
+    liveDrawLastBar = liveLastBarIndex
 
-    // Calculate regression values at start and end points
-    liveStartY = liveSlope * liveDrawFirstBar + liveIntercept
-    liveEndY = liveSlope * liveDrawLastBar + liveIntercept
+    // Only draw if we have a valid range
+    if liveDrawLastBar > liveDrawFirstBar
+        // Calculate regression values at start and end points
+        liveStartY = liveSlope * liveDrawFirstBar + liveIntercept
+        liveEndY = liveSlope * liveDrawLastBar + liveIntercept
 
-    // Determine color based on slope direction
-    liveBaseColor = liveSlope >= 0 ? uptrendColor : downtrendColor
-    liveLineColor = color.new(liveBaseColor, 40)
-    liveFillColor = color.new(liveBaseColor, fillTransparency)
+        // Determine color based on slope direction
+        liveBaseColor = liveSlope >= 0 ? uptrendColor : downtrendColor
+        liveLineColor = color.new(liveBaseColor, 40)
+        liveFillColor = color.new(liveBaseColor, fillTransparency)
 
-    // Draw main live regression line
-    liveRegressionLine := line.new(liveDrawFirstBar, liveStartY,
-         liveDrawLastBar, liveEndY,
-         color=liveLineColor,
-         width=lineWidth,
-         style=line.style_dashed)
-
-    // Draw live channel lines if enabled
-    if showUpperChannel
-        liveUpperStartY = liveStartY + upperDeviation * liveStdDev
-        liveUpperEndY = liveEndY + upperDeviation * liveStdDev
-
-        liveUpperChannelLine := line.new(liveDrawFirstBar, liveUpperStartY,
-             liveDrawLastBar, liveUpperEndY,
+        // Draw main live regression line
+        liveRegressionLine := line.new(liveDrawFirstBar, liveStartY,
+             liveDrawLastBar, liveEndY,
              color=liveLineColor,
              width=lineWidth,
-             style=line.style_solid)
+             style=line.style_dashed)
 
-    if showLowerChannel
-        liveLowerStartY = liveStartY - lowerDeviation * liveStdDev
-        liveLowerEndY = liveEndY - lowerDeviation * liveStdDev
+        // Draw live channel lines if enabled
+        if showUpperChannel
+            liveUpperStartY = liveStartY + upperDeviation * liveStdDev
+            liveUpperEndY = liveEndY + upperDeviation * liveStdDev
 
-        liveLowerChannelLine := line.new(liveDrawFirstBar, liveLowerStartY,
-             liveDrawLastBar, liveLowerEndY,
-             color=liveLineColor,
-             width=lineWidth,
-             style=line.style_solid)
+            liveUpperChannelLine := line.new(liveDrawFirstBar, liveUpperStartY,
+                 liveDrawLastBar, liveUpperEndY,
+                 color=liveLineColor,
+                 width=lineWidth,
+                 style=line.style_solid)
 
-    // Fill between live channels (only if both are shown)
-    if showUpperChannel and showLowerChannel
-        liveChannelFill := linefill.new(liveUpperChannelLine, liveLowerChannelLine,
-             color=liveFillColor)
+        if showLowerChannel
+            liveLowerStartY = liveStartY - lowerDeviation * liveStdDev
+            liveLowerEndY = liveEndY - lowerDeviation * liveStdDev
+
+            liveLowerChannelLine := line.new(liveDrawFirstBar, liveLowerStartY,
+                 liveDrawLastBar, liveLowerEndY,
+                 color=liveLineColor,
+                 width=lineWidth,
+                 style=line.style_solid)
+
+        // Fill between live channels (only if both are shown)
+        if showUpperChannel and showLowerChannel
+            liveChannelFill := linefill.new(liveUpperChannelLine, liveLowerChannelLine,
+                 color=liveFillColor)
 
 
 // ============================================================================
