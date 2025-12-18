@@ -199,6 +199,7 @@ var int MAX_ARRAY_SIZE = 50000
 isInRange(barTime, startT, endT) =>
     barTime >= startT and barTime <= endT
 
+
 // Calculate mean of an array
 calcMean(arr, size) =>
     sum = 0.0
@@ -624,7 +625,10 @@ var array<line> chainedUpperLines = array.new<line>()
 var array<line> chainedLowerLines = array.new<line>()
 var array<linefill> chainedFills = array.new<linefill>()
 
-if barstate.islast
+// Use condition that works in both live and replay modes
+shouldRedraw = barstate.islast or barstate.isconfirmed
+
+if shouldRedraw
     // Delete original regression lines
     if not na(origRegressionLine)
         line.delete(origRegressionLine)
@@ -674,7 +678,7 @@ if barstate.islast
         array.clear(chainedFills)
 
 // Draw ORIGINAL regression (always show as the first/base regression)
-if showStatic and origRangeSize >= 2 and barstate.islast
+if showStatic and origRangeSize >= 2 and shouldRedraw
     origStartY = origSlope * origFirstBarIndex + origIntercept
     origEndY = origSlope * origLastBarIndex + origIntercept
 
@@ -707,7 +711,7 @@ if showStatic and origRangeSize >= 2 and barstate.islast
              color=regressionFillColor)
 
 // Draw CHAINED regressions (historical locked regressions)
-if showStatic and barstate.islast and array.size(chainedSlopes) > 0
+if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
     for i = 0 to array.size(chainedSlopes) - 1
         cSlope = array.get(chainedSlopes, i)
         cIntercept = array.get(chainedIntercepts, i)
@@ -744,7 +748,7 @@ if showStatic and barstate.islast and array.size(chainedSlopes) > 0
 
 // Draw CURRENT STATIC regression (the most recent locked regression used for breakout detection)
 // Only draw if it's different from original (i.e., we've chained at least once)
-if showStatic and barstate.islast and chainCount > 0 and not na(currentStaticSlope)
+if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
     csStartY = currentStaticSlope * currentStaticFirstBar + currentStaticIntercept
     csEndY = currentStaticSlope * currentStaticLastBar + currentStaticIntercept
 
@@ -777,7 +781,7 @@ if showStatic and barstate.islast and chainCount > 0 and not na(currentStaticSlo
              color=regressionFillColor)
 
 // Draw LIVE regression and channel lines (only when dynamic is active after breakout)
-if showLive and isDynamicActive and liveRangeSize >= 2 and barstate.islast
+if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
     // Calculate regression values at start and end points
     liveStartY = liveSlope * liveFirstBarIndex + liveIntercept
     liveEndY = liveSlope * liveLastBarIndex + liveIntercept
@@ -825,7 +829,7 @@ if not na(pearsonLabel)
     label.delete(pearsonLabel)
 
 // Create new label with Pearson R value (for static regression)
-if showLabel and showStatic and origRangeSize >= 2 and barstate.islast and not na(origPearsonR)
+if showLabel and showStatic and origRangeSize >= 2 and shouldRedraw and not na(origPearsonR)
     // Determine label position
     labelX = labelPosition == "Left" ? origFirstBarIndex :
          labelPosition == "Right" ? origLastBarIndex :
@@ -877,7 +881,7 @@ var label livePearsonLabel = na
 if not na(livePearsonLabel)
     label.delete(livePearsonLabel)
 
-if showLabel and showLive and isDynamicActive and liveRangeSize >= 2 and barstate.islast and not na(livePearsonR)
+if showLabel and showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw and not na(livePearsonR)
     // Position label based on mode and label position setting
     liveLabelX = if regressionMode == "Both"
         // When showing both, always place live label at the right to avoid overlap
@@ -1021,7 +1025,7 @@ if not na(statsTable)
     table.delete(statsTable)
 
 // Create statistics table if enabled
-if showStatsTable and barstate.islast and (origRangeSize >= 2 or liveRangeSize >= 2)
+if showStatsTable and shouldRedraw and (origRangeSize >= 2 or liveRangeSize >= 2)
     // Determine table position
     tablePos = tablePosition == "Top Left" ? position.top_left :
                tablePosition == "Top Right" ? position.top_right :
@@ -1129,7 +1133,7 @@ var label warningLabel = na
 if not na(warningLabel)
     label.delete(warningLabel)
 
-if barstate.islast and origRangeSize < 2 and isInRange(time, startTime, endTime)
+if shouldRedraw and origRangeSize < 2 and isInRange(time, startTime, endTime)
     warningLabel := label.new(bar_index,
          high,
          text="⚠ Insufficient data for regression\nNeed at least 2 data points",
@@ -1139,7 +1143,7 @@ if barstate.islast and origRangeSize < 2 and isInRange(time, startTime, endTime)
          size=size.normal)
 
 // Warning for invalid time range
-if barstate.islast and startTime >= endTime
+if shouldRedraw and startTime >= endTime
     warningLabel := label.new(bar_index,
          high,
          text="⚠ Invalid time range\nStart time must be before end time",
@@ -1149,7 +1153,7 @@ if barstate.islast and startTime >= endTime
          size=size.normal)
 
 // Warning for array size limit reached
-if barstate.islast and (origRangeSize >= MAX_ARRAY_SIZE or liveRangeSize >= MAX_ARRAY_SIZE)
+if shouldRedraw and (origRangeSize >= MAX_ARRAY_SIZE or liveRangeSize >= MAX_ARRAY_SIZE)
     warningLabel := label.new(bar_index,
          low,
          text="ℹ Maximum data points reached (" + str.tostring(MAX_ARRAY_SIZE) + ")\n" +
