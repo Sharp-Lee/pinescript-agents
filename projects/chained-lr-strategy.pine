@@ -154,24 +154,6 @@ lineWidth = input.int(2,
      tooltip="Width for all regression and channel lines",
      group="Visual Settings")
 
-showLabel = input.bool(true,
-     "Show Pearson R Label",
-     tooltip="Display Pearson R coefficient on chart",
-     group="Visual Settings")
-
-labelStyle = input.string("Minimal",
-     "Label Style",
-     options=["Minimal", "Detailed"],
-     tooltip="Minimal shows just R value, Detailed shows full statistics",
-     group="Visual Settings")
-
-labelPosition = input.string("Right",
-     "Label Position",
-     options=["Left", "Right", "Center"],
-     tooltip="Position of Pearson R label along the regression line.\n" +
-             "Note: When showing both regressions, static label uses this position while live label is always placed at the right.",
-     group="Visual Settings")
-
 showStatsTable = input.bool(false,
      "Show Statistics Table",
      tooltip="Display a table with regression statistics in the corner",
@@ -819,113 +801,6 @@ if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
         liveChannelFill := linefill.new(liveUpperChannelLine, liveLowerChannelLine,
              color=regressionFillColor)
 
-// ============================================================================
-// PEARSON R DISPLAY
-// ============================================================================
-
-// Delete previous label
-var label pearsonLabel = na
-if not na(pearsonLabel)
-    label.delete(pearsonLabel)
-
-// Create new label with Pearson R value (for static regression)
-if showLabel and showStatic and origRangeSize >= 2 and shouldRedraw and not na(origPearsonR)
-    // Determine label position
-    labelX = labelPosition == "Left" ? origFirstBarIndex :
-         labelPosition == "Right" ? origLastBarIndex :
-         int(math.avg(origFirstBarIndex, origLastBarIndex))
-
-    // Calculate Y position at the label X location
-    labelRegY = origSlope * labelX + origIntercept
-    labelY = labelRegY + (showUpperChannel ? upperDeviation * origStdDev : origStdDev)
-
-    // Format Pearson R with color coding
-    rValue = origPearsonR
-
-    // Color based on correlation strength
-    labelColor = math.abs(rValue) >= 0.8 ? color.new(color.green, 20) :
-         math.abs(rValue) >= 0.5 ? color.new(color.orange, 20) :
-         color.new(color.red, 20)
-
-    // Create text based on style
-    labelText = if labelStyle == "Minimal"
-        // Compact format with mode indicator if showing both
-        modePrefix = regressionMode == "Both" ? "Static " : ""
-        str.format("{0}R: {1,number,#.####}", modePrefix, rValue)
-    else
-        // Detailed format with all statistics
-        interpretation = math.abs(rValue) >= 0.8 ? "Strong" :
-             math.abs(rValue) >= 0.5 ? "Moderate" :
-             "Weak"
-        direction = rValue >= 0 ? "Positive" : "Negative"
-        modeHeader = regressionMode == "Both" ? "STATIC\n" : ""
-        str.format("{0}{1} {2}\nR: {3,number,#.####}\nR²: {4,number,#.####}\nBars: {5}",
-             modeHeader,
-             direction,
-             interpretation,
-             rValue,
-             rValue * rValue,
-             origRangeSize)
-
-    pearsonLabel := label.new(labelX,
-         labelY,
-         text=labelText,
-         style=label.style_label_down,
-         color=labelColor,
-         textcolor=color.white,
-         size=labelStyle == "Minimal" ? size.small : size.normal,
-         textalign=text.align_center)
-
-// Create label for live regression R value
-var label livePearsonLabel = na
-if not na(livePearsonLabel)
-    label.delete(livePearsonLabel)
-
-if showLabel and showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw and not na(livePearsonR)
-    // Position label based on mode and label position setting
-    liveLabelX = if regressionMode == "Both"
-        // When showing both, always place live label at the right to avoid overlap
-        liveLastBarIndex
-    else
-        // When showing only live, respect the label position setting
-        labelPosition == "Left" ? liveFirstBarIndex :
-             labelPosition == "Right" ? liveLastBarIndex :
-             int(math.avg(liveFirstBarIndex, liveLastBarIndex))
-
-    liveLabelRegY = liveSlope * liveLabelX + liveIntercept
-    liveLabelY = liveLabelRegY + (showUpperChannel ? upperDeviation * liveStdDev : liveStdDev)
-
-    liveRValue = livePearsonR
-    liveLabelColor = math.abs(liveRValue) >= 0.8 ? color.new(color.green, 20) :
-         math.abs(liveRValue) >= 0.5 ? color.new(color.orange, 20) :
-         color.new(color.red, 20)
-
-    liveLabelText = if labelStyle == "Minimal"
-        // Add "Live" prefix when showing both modes
-        modePrefix = regressionMode == "Both" ? "Live " : ""
-        str.format("{0}R: {1,number,#.####}", modePrefix, liveRValue)
-    else
-        liveInterpretation = math.abs(liveRValue) >= 0.8 ? "Strong" :
-             math.abs(liveRValue) >= 0.5 ? "Moderate" :
-             "Weak"
-        liveDirection = liveRValue >= 0 ? "Positive" : "Negative"
-        modeHeader = regressionMode == "Both" ? "LIVE\n" : ""
-        str.format("{0}{1} {2}\nR: {3,number,#.####}\nR²: {4,number,#.####}\nBars: {5}",
-             modeHeader,
-             liveDirection,
-             liveInterpretation,
-             liveRValue,
-             liveRValue * liveRValue,
-             liveRangeSize)
-
-    livePearsonLabel := label.new(liveLabelX,
-         liveLabelY,
-         text=liveLabelText,
-         style=label.style_label_down,
-         color=liveLabelColor,
-         textcolor=color.white,
-         size=labelStyle == "Minimal" ? size.small : size.normal,
-         textalign=text.align_center)
 
 // ============================================================================
 // ALERTS
