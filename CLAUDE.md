@@ -107,29 +107,119 @@ Show current system status including lock state and project count.
 When a user provides a YouTube URL, you MUST:
 
 1. **Immediately recognize** the YouTube URL in the prompt
-2. **The pine-visualizer skill will automatically activate** to analyze the video
-3. **The skill will**:
-   - Run `python tools/video-analyzer.py "<url>"`
-   - Extract transcript and trading concepts
-   - Generate Pine Script specification
-   - Show results to user
+2. **Run the video analyzer immediately** - do not ask for permission
+3. **Show progress** as the analysis runs (users see real-time feedback)
+4. **Present results** and confirm with user before implementing
 
-### Example:
+### How to Run Video Analysis
+```bash
+python tools/video-analyzer.py "<youtube_url>"
+```
+
+### Command Options
+```bash
+# Standard analysis (uses YouTube captions - fast!)
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123"
+
+# Force Whisper transcription (for videos without captions)
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123" --whisper
+
+# Use larger Whisper model for better accuracy
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123" --whisper --model medium
+
+# Output raw JSON for programmatic use
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123" --json
+```
+
+### What Users See (Progress Output)
+The analyzer shows real-time progress so users know what's happening:
+
+```
+🎬 Starting Video Analysis...
+============================================================
+🔗 Video ID: ABC123
+📋 Fetching video metadata...
+📺 Title: How to Trade RSI Divergence...
+📝 Attempting to fetch YouTube captions...
+✅ Found manual English captions
+✅ Transcript obtained: 15234 characters (manual_captions)
+🔍 Analyzing trading content...
+
+╔══════════════════════════════════════════════════════════════╗
+║                 📹 VIDEO ANALYSIS COMPLETE                    ║
+╚══════════════════════════════════════════════════════════════╝
+
+📺 Source: How to Trade RSI Divergence...
+👤 Author: Trading Channel
+⏱️  Duration: 12:34
+📝 Transcript: manual_captions
+
+┌──────────────────────────────────────────────────────────────┐
+│ ANALYSIS RESULTS                                              │
+└──────────────────────────────────────────────────────────────┘
+
+  📊 Script Type:     STRATEGY
+  ⚡ Complexity:      6/10
+  🎯 Strategy Style:  divergence
+  ✅ Feasibility:     FULL
+
+... (detected components, trading logic, suggestions)
+
+📁 Full analysis saved to: projects/analysis/analysis_ABC123_...json
+```
+
+### Transcription Methods (Automatic Selection)
+1. **YouTube Captions** (preferred - instant)
+   - Uses `youtube-transcript-api`
+   - Prefers manual captions, falls back to auto-generated
+   - Cached for instant re-analysis
+
+2. **Whisper Transcription** (fallback - slower)
+   - Downloads audio via `yt-dlp`
+   - Transcribes with OpenAI Whisper
+   - Use `--whisper` flag to force this method
+
+### Analysis Output Includes
+- **Video metadata**: Title, author, duration
+- **Script type**: Indicator vs Strategy detection
+- **Complexity score**: 1-10 rating
+- **Detected indicators**: RSI, MACD, EMA, etc.
+- **Patterns found**: Divergence, breakout, crossover, etc.
+- **Entry/exit conditions**: Extracted from transcript
+- **Risk management rules**: Position sizing, stops, etc.
+- **Suggested features**: Based on detected concepts
+- **Feasibility assessment**: Pine Script compatibility
+
+### Video Analysis Workflow
+1. **Run analyzer immediately** when YouTube URL detected
+2. **Show the summary** to the user for review
+3. **Confirm understanding** - "Does this capture the strategy correctly?"
+4. **Refine if needed** - User can describe adjustments
+5. **Hand off to pine-developer** - Implement the Pine Script
+
+### Example Interaction
 ```
 User: https://youtube.com/watch?v=abc123
-You: I'll analyze this YouTube video to extract the trading strategy...
-[pine-visualizer skill activates automatically]
+
+You: I'll analyze this YouTube video to extract the trading strategy.
+[Run: python tools/video-analyzer.py "https://youtube.com/watch?v=abc123"]
+[Show analysis results]
+
+You: Does this capture the strategy correctly? Let me know if anything
+needs adjustment before we implement it.
 ```
 
 **DO NOT**:
 - Ask if they want to analyze it
-- Wait for confirmation
+- Wait for confirmation before running
 - Skip the analysis step
+- Use WebSearch for YouTube videos (use the local analyzer)
 
 **ALWAYS**:
 - Run the analysis immediately
 - Show extracted concepts
-- Proceed to implementation
+- Confirm with user before implementing
+- Proceed to implementation after confirmation
 
 ## File Protection System
 

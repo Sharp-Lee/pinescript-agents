@@ -1,24 +1,39 @@
 # Changelog
 
-All notable changes to the Pine Script Development Assistant will be documented in this file.
+All notable changes to PineScript Agents will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [2.0.0] - 2025-12-18
-
-### Changed
-- **BREAKING**: Migrated from `.claude/agents/` to `.claude/skills/` system
-- Skills now auto-activate based on user request context (no explicit Task tool calls needed)
-- Updated `CLAUDE.md` to document the skills system
-- Updated `user-prompt-submit.sh` hook to use skills terminology
-- Hooks now provide informational feedback only (skills auto-invoke)
+## [1.3.0] - 2025-12-18
 
 ### Added
-- New skills directory structure at `.claude/skills/`
-- 7 skill configurations with `SKILL.md` files:
+- **YouTube Video Analysis**: Analyze trading strategy videos and auto-generate Pine Scripts
+  - Uses YouTube captions (fast) with Whisper fallback
+  - Extracts indicators, patterns, entry/exit conditions
+  - Generates implementation specifications
+  - Caches transcripts for instant re-analysis
+- **Project Statusline**: Custom status bar showing version, project count, and skills
+- **Requirements file**: `requirements.txt` for video analysis dependencies
+- **Daily Bias + FVG Strategy**: Example strategy generated from video analysis
+
+### Changed
+- Migrated from `.claude/agents/` to `.claude/skills/` system
+- Skills now auto-activate based on user request context
+- Updated documentation with video analysis workflow
+- Improved video-analyzer.py with better progress output
+
+## [1.2.0] - 2025-12-18
+
+### Changed
+- Migrated to Claude Code Skills system
+- Skills use `SKILL.md` format in `.claude/skills/` directory
+- Auto-discovery and invocation based on request context
+
+### Added
+- 7 skill configurations:
   - `pine-developer` - Writes production Pine Script v6 code
   - `pine-visualizer` - Breaks down trading ideas into components
   - `pine-debugger` - Adds debugging tools and troubleshooting
@@ -26,20 +41,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `pine-optimizer` - Optimizes performance and user experience
   - `pine-publisher` - Prepares scripts for TradingView publication
   - `pine-manager` - Orchestrates complex multi-step projects
-- Skills include detailed `description` fields for automatic discovery
-- `status` command now lists available skills
-- `help` command shows skills documentation
-- This `CHANGELOG.md` file
 
 ### Removed
-- **`.claude/agents/` directory** - Fully replaced by `.claude/skills/`
-- Dependency on explicit Task tool invocation for agent selection
-- References to "subagents" in documentation
+- `.claude/agents/` directory (replaced by skills)
 
-### Migration Notes
-- The `.claude/agents/` directory has been removed (fully replaced by skills)
-- Skills use the same content as the previous agents, reformatted for SKILL.md
-- No changes needed for end users - skills activate automatically
+## [1.1.0] - 2025-12-15
+
+### Added
+- Chained Linear Regression Reversal Strategy
+- Market Speedometer indicator
+- Midnight VWAP indicator
+- Trading Discipline Checklist indicator
 
 ## [1.0.0] - 2025-12-01
 
@@ -54,41 +66,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive `start` command
 - Example scripts
 
-### Features
-- pine-visualizer: Trading idea decomposition
-- pine-developer: Pine Script v6 code generation
-- pine-debugger: Debugging tools and troubleshooting
-- pine-backtester: Performance metrics and testing
-- pine-optimizer: Performance and UX optimization
-- pine-manager: Multi-agent workflow orchestration
-- pine-publisher: TradingView publication preparation
-
 ---
 
 ## Version History Summary
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| 2.0.0 | 2025-12-18 | Migrated to Claude Code Skills system |
-| 1.0.0 | 2025-12-01 | Initial release with agent architecture |
-
-## Upgrade Guide
-
-### From 1.x to 2.0
-
-**For End Users**: No action required. Skills activate automatically based on your requests.
-
-**For Developers**:
-1. Skills are now in `.claude/skills/skill-name/SKILL.md` format
-2. The `description` field in SKILL.md frontmatter drives automatic discovery
-3. `allowed-tools` is optional and restricts (rather than grants) tool access
-4. Hooks provide informational feedback only - they don't control skill activation
-
-**Key Differences**:
-
-| Aspect | v1.x (Agents) | v2.0 (Skills) |
-|--------|--------------|---------------|
-| Location | `.claude/agents/name.md` | `.claude/skills/name/SKILL.md` |
-| Invocation | Explicit Task tool | Auto-invoked by Claude |
-| Discovery | Manual reference | Automatic at startup |
-| Tool access | `tools:` grants | `allowed-tools:` restricts |
+| 1.3.0 | 2025-12-18 | YouTube video analysis, statusline |
+| 1.2.0 | 2025-12-18 | Migrated to Skills system |
+| 1.1.0 | 2025-12-15 | New indicators and strategies |
+| 1.0.0 | 2025-12-01 | Initial release |

@@ -12,7 +12,16 @@ A comprehensive Pine Script development environment powered by Claude Code's Ski
    cd pinescript-agents
    ```
 
-2. **Open in your IDE with Claude Code**
+2. **Install dependencies** (for YouTube video analysis)
+   ```bash
+   pip install -r requirements.txt
+
+   # Also need FFmpeg for audio processing (optional, for Whisper fallback)
+   # macOS: brew install ffmpeg
+   # Ubuntu: sudo apt install ffmpeg
+   ```
+
+3. **Open in your IDE with Claude Code**
    ```bash
    # VS Code with Claude extension
    code .
@@ -21,7 +30,7 @@ A comprehensive Pine Script development environment powered by Claude Code's Ski
    claude code .
    ```
 
-3. **Just type "start" in Claude chat**
+4. **Just type "start" in Claude chat**
    ```
    start
    ```
@@ -31,7 +40,7 @@ A comprehensive Pine Script development environment powered by Claude Code's Ski
    - Choose from templates
    - Understand system capabilities
 
-4. **Or jump straight to creating**
+5. **Or jump straight to creating**
    ```
    Create an RSI divergence indicator with alerts
    Build a mean reversion strategy using Bollinger Bands

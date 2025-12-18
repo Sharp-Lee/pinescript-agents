@@ -1,42 +1,67 @@
 ---
 name: pine-visualizer
-description: Breaks down trading ideas into component parts for systematic Pine Script implementation. Use when analyzing trading concepts, decomposing strategies, planning indicator features, or extracting ideas from YouTube videos. Triggers on conceptual questions, "how would I build", or video analysis requests.
+description: Breaks down trading ideas into component parts for systematic Pine Script implementation. Use when analyzing trading concepts, decomposing strategies, planning indicator features, or extracting ideas from YouTube videos. Triggers on conceptual questions, "how would I build", YouTube URLs, or video analysis requests.
 ---
 
 # Pine Script Visualizer
 
 Specialized in decomposing complex trading ideas into actionable Pine Script components.
 
-## Video Analysis Capability
+## YouTube Video Analysis
 
-### CRITICAL: YouTube Video Analysis
+### CRITICAL: When a YouTube URL is Provided
 
-**WHEN A YOUTUBE URL IS PROVIDED, IMMEDIATELY:**
+**IMMEDIATELY run the video analyzer** - do not ask for permission:
 
-1. **USE THE BASH TOOL** to run the video analyzer:
 ```bash
 python tools/video-analyzer.py "<youtube_url>"
 ```
 
-**DO NOT USE WebSearch!** Use the Bash tool to run the Python script above.
+### Video Analyzer Features
 
-2. The tool will output:
-   - Video title and channel
-   - Extracted trading concepts (indicators, patterns, strategies)
-   - Entry/exit conditions found
-   - Risk management rules
-   - A complete JSON specification
+The tool automatically:
+1. **Fetches video metadata** (title, author, duration)
+2. **Extracts transcript** using the fastest available method:
+   - First tries YouTube's built-in captions (instant)
+   - Falls back to Whisper transcription if needed
+3. **Analyzes trading content**:
+   - Detects indicators (RSI, MACD, EMA, Bollinger Bands, etc.)
+   - Identifies patterns (breakout, divergence, crossover, etc.)
+   - Extracts entry/exit conditions
+   - Finds risk management rules
+   - Captures specific parameters (periods, percentages, levels)
+4. **Generates a specification** for Pine Script implementation
+5. **Saves analysis** to `projects/analysis/` for reference
 
-3. **Review the extracted information** with the user
-4. **Create Pine Script specification** based on the analysis
-5. **Return the specification** for implementation
+### Command Options
 
-### CRITICAL INSTRUCTIONS:
-- **NEVER use WebSearch for YouTube videos**
-- **ALWAYS use Bash tool** to run: `python tools/video-analyzer.py "<url>"`
-- **DO NOT ask permission** - just analyze immediately
-- **DO NOT search the web** - use the local analyzer tool
-- The analyzer extracts transcripts and identifies trading concepts automatically
+```bash
+# Standard analysis (uses YouTube captions, fast)
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123"
+
+# Force Whisper transcription (slower but works without captions)
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123" --whisper
+
+# Use larger Whisper model for better accuracy
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123" --whisper --model medium
+
+# Output raw JSON for programmatic use
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123" --json
+```
+
+### After Video Analysis
+
+1. **Review the analysis** with the user
+2. **Confirm understanding** - ask if the extracted concepts match their expectations
+3. **Refine if needed** - user can describe adjustments
+4. **Proceed to implementation** - hand off to pine-developer skill
+
+### CRITICAL INSTRUCTIONS
+
+- **NEVER use WebSearch for YouTube videos** - use the local analyzer
+- **DO NOT ask permission** - run analysis immediately when URL is detected
+- **ALWAYS show the summary** to the user for confirmation
+- **Transcripts are cached** - re-analyzing the same video is instant
 
 ## Core Responsibilities
 
@@ -66,6 +91,8 @@ python tools/video-analyzer.py "<youtube_url>"
 
 ## Working Process
 
+### For Conceptual Questions
+
 1. Listen to the user's trading idea carefully
 2. Ask clarifying questions if needed
 3. Break down the idea into:
@@ -76,17 +103,53 @@ python tools/video-analyzer.py "<youtube_url>"
    - Alert conditions (if applicable)
 4. Create a structured implementation plan
 5. Use TodoWrite to document all tasks
-6. Identify which components need other skills
+6. Identify which skills will handle implementation
+
+### For YouTube Videos
+
+1. **Run video analyzer immediately** when URL detected
+2. **Display the analysis summary** to the user
+3. **Confirm understanding** - "Does this match what you're looking for?"
+4. **Refine if needed** - user can adjust or clarify
+5. **Create implementation plan** based on confirmed analysis
+6. **Hand off to pine-developer** for code implementation
 
 ## Output Format
 
-Always provide:
+### For Conceptual Analysis
 
-1. **Concept Summary**: Brief restatement of the trading idea
-2. **Component Breakdown**: List of all required parts
-3. **Implementation Steps**: Ordered list of tasks
-4. **Potential Challenges**: Known issues to watch for
-5. **Required Resources**: Which templates/utilities to use
+```
+CONCEPT SUMMARY:
+[Brief restatement of the trading idea]
+
+COMPONENTS NEEDED:
+1. [Component 1]
+2. [Component 2]
+...
+
+IMPLEMENTATION STEPS:
+1. [Step 1]
+2. [Step 2]
+...
+
+POTENTIAL CHALLENGES:
+- [Challenge 1]
+- [Challenge 2]
+
+REQUIRED RESOURCES:
+- [Template or utility to use]
+```
+
+### For Video Analysis
+
+The video analyzer outputs a formatted summary including:
+- Video source information
+- Detected script type (indicator/strategy)
+- Complexity score (1-10)
+- Main indicators and patterns found
+- Entry/exit conditions extracted
+- Suggested features
+- Implementation notes
 
 ## Key Considerations
 
@@ -98,7 +161,7 @@ Always provide:
 - Real-time vs historical calculation differences
 - Alert system constraints
 
-## Example Breakdown
+## Example: Conceptual Breakdown
 
 **User**: "I want a strategy that buys when price crosses above the 50 EMA and RSI is oversold"
 
@@ -134,6 +197,23 @@ REQUIRED RESOURCES:
 - templates/utilities/risk-management/position-size.pine
 ```
 
+## Example: YouTube Video Flow
+
+**User**: "https://youtube.com/watch?v=ABC123"
+
+**Action**:
+```bash
+python tools/video-analyzer.py "https://youtube.com/watch?v=ABC123"
+```
+
+**Output**: Formatted analysis summary showing detected components
+
+**Follow-up**: "Does this capture the strategy correctly? Let me know if anything needs adjustment before we implement it."
+
 ## Role Boundary
 
-This skill is for **planning and visualization**, not code implementation. Hand off actual implementation to the pine-developer skill.
+This skill is for **planning and visualization**, not code implementation.
+
+- **This skill**: Analyzes, plans, breaks down, extracts concepts
+- **pine-developer**: Writes the actual Pine Script code
+- **pine-manager**: Orchestrates complex multi-step implementations
