@@ -665,16 +665,20 @@ if shouldRedraw
 
 // Draw ORIGINAL regression (always show as the first/base regression)
 if showStatic and origRangeSize >= 2 and shouldRedraw
-    origStartY = origSlope * origFirstBarIndex + origIntercept
-    origEndY = origSlope * origLastBarIndex + origIntercept
+    // Clamp bar indices to historical buffer limit to prevent runtime errors
+    drawFirstBar = math.max(origFirstBarIndex, bar_index - 5000)
+    drawLastBar = origLastBarIndex
+
+    origStartY = origSlope * drawFirstBar + origIntercept
+    origEndY = origSlope * drawLastBar + origIntercept
 
     // Determine color based on slope direction
     origBaseColor = origSlope >= 0 ? uptrendColor : downtrendColor
     origLineColor = color.new(origBaseColor, 40)
     origFillColor = color.new(origBaseColor, fillTransparency)
 
-    origRegressionLine := line.new(origFirstBarIndex, origStartY,
-         origLastBarIndex, origEndY,
+    origRegressionLine := line.new(drawFirstBar, origStartY,
+         drawLastBar, origEndY,
          color=origLineColor,
          width=lineWidth,
          style=line.style_dashed)
@@ -682,8 +686,8 @@ if showStatic and origRangeSize >= 2 and shouldRedraw
     if showUpperChannel
         origUpperStartY = origStartY + upperDeviation * origStdDev
         origUpperEndY = origEndY + upperDeviation * origStdDev
-        origUpperChannelLine := line.new(origFirstBarIndex, origUpperStartY,
-             origLastBarIndex, origUpperEndY,
+        origUpperChannelLine := line.new(drawFirstBar, origUpperStartY,
+             drawLastBar, origUpperEndY,
              color=origLineColor,
              width=lineWidth,
              style=line.style_solid)
@@ -691,8 +695,8 @@ if showStatic and origRangeSize >= 2 and shouldRedraw
     if showLowerChannel
         origLowerStartY = origStartY - lowerDeviation * origStdDev
         origLowerEndY = origEndY - lowerDeviation * origStdDev
-        origLowerChannelLine := line.new(origFirstBarIndex, origLowerStartY,
-             origLastBarIndex, origLowerEndY,
+        origLowerChannelLine := line.new(drawFirstBar, origLowerStartY,
+             drawLastBar, origLowerEndY,
              color=origLineColor,
              width=lineWidth,
              style=line.style_solid)
@@ -710,15 +714,19 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
         cFirstBar = array.get(chainedFirstBars, i)
         cLastBar = array.get(chainedLastBars, i)
 
-        cStartY = cSlope * cFirstBar + cIntercept
-        cEndY = cSlope * cLastBar + cIntercept
+        // Clamp bar indices to historical buffer limit
+        cDrawFirstBar = math.max(cFirstBar, bar_index - 5000)
+        cDrawLastBar = cLastBar
+
+        cStartY = cSlope * cDrawFirstBar + cIntercept
+        cEndY = cSlope * cDrawLastBar + cIntercept
 
         // Determine color based on slope direction
         cBaseColor = cSlope >= 0 ? uptrendColor : downtrendColor
         cLineColor = color.new(cBaseColor, 40)
         cFillColor = color.new(cBaseColor, fillTransparency)
 
-        cLine = line.new(cFirstBar, cStartY, cLastBar, cEndY,
+        cLine = line.new(cDrawFirstBar, cStartY, cDrawLastBar, cEndY,
              color=cLineColor,
              width=lineWidth,
              style=line.style_dashed)
@@ -731,7 +739,7 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
         if showUpperChannel
             cUpperStartY = cStartY + upperDeviation * cStdDev
             cUpperEndY = cEndY + upperDeviation * cStdDev
-            cUpperLine := line.new(cFirstBar, cUpperStartY, cLastBar, cUpperEndY,
+            cUpperLine := line.new(cDrawFirstBar, cUpperStartY, cDrawLastBar, cUpperEndY,
                  color=cLineColor,
                  width=lineWidth,
                  style=line.style_solid)
@@ -740,7 +748,7 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
         if showLowerChannel
             cLowerStartY = cStartY - lowerDeviation * cStdDev
             cLowerEndY = cEndY - lowerDeviation * cStdDev
-            cLowerLine := line.new(cFirstBar, cLowerStartY, cLastBar, cLowerEndY,
+            cLowerLine := line.new(cDrawFirstBar, cLowerStartY, cDrawLastBar, cLowerEndY,
                  color=cLineColor,
                  width=lineWidth,
                  style=line.style_solid)
@@ -754,16 +762,20 @@ if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
 // Draw CURRENT STATIC regression (the most recent locked regression used for breakout detection)
 // Only draw if it's different from original (i.e., we've chained at least once)
 if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
-    csStartY = currentStaticSlope * currentStaticFirstBar + currentStaticIntercept
-    csEndY = currentStaticSlope * currentStaticLastBar + currentStaticIntercept
+    // Clamp bar indices to historical buffer limit
+    csDrawFirstBar = math.max(currentStaticFirstBar, bar_index - 5000)
+    csDrawLastBar = currentStaticLastBar
+
+    csStartY = currentStaticSlope * csDrawFirstBar + currentStaticIntercept
+    csEndY = currentStaticSlope * csDrawLastBar + currentStaticIntercept
 
     // Determine color based on slope direction
     csBaseColor = currentStaticSlope >= 0 ? uptrendColor : downtrendColor
     csLineColor = color.new(csBaseColor, 40)
     csFillColor = color.new(csBaseColor, fillTransparency)
 
-    currentStaticLine := line.new(currentStaticFirstBar, csStartY,
-         currentStaticLastBar, csEndY,
+    currentStaticLine := line.new(csDrawFirstBar, csStartY,
+         csDrawLastBar, csEndY,
          color=csLineColor,
          width=lineWidth,
          style=line.style_dashed)
@@ -771,8 +783,8 @@ if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
     if showUpperChannel
         csUpperStartY = csStartY + upperDeviation * currentStaticStdDev
         csUpperEndY = csEndY + upperDeviation * currentStaticStdDev
-        currentStaticUpperLine := line.new(currentStaticFirstBar, csUpperStartY,
-             currentStaticLastBar, csUpperEndY,
+        currentStaticUpperLine := line.new(csDrawFirstBar, csUpperStartY,
+             csDrawLastBar, csUpperEndY,
              color=csLineColor,
              width=lineWidth,
              style=line.style_solid)
@@ -780,8 +792,8 @@ if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
     if showLowerChannel
         csLowerStartY = csStartY - lowerDeviation * currentStaticStdDev
         csLowerEndY = csEndY - lowerDeviation * currentStaticStdDev
-        currentStaticLowerLine := line.new(currentStaticFirstBar, csLowerStartY,
-             currentStaticLastBar, csLowerEndY,
+        currentStaticLowerLine := line.new(csDrawFirstBar, csLowerStartY,
+             csDrawLastBar, csLowerEndY,
              color=csLineColor,
              width=lineWidth,
              style=line.style_solid)
@@ -792,9 +804,13 @@ if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
 
 // Draw LIVE regression and channel lines (only when dynamic is active after breakout)
 if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
+    // Clamp bar indices to historical buffer limit
+    liveDrawFirstBar = math.max(liveFirstBarIndex, bar_index - 5000)
+    liveDrawLastBar = liveLastBarIndex
+
     // Calculate regression values at start and end points
-    liveStartY = liveSlope * liveFirstBarIndex + liveIntercept
-    liveEndY = liveSlope * liveLastBarIndex + liveIntercept
+    liveStartY = liveSlope * liveDrawFirstBar + liveIntercept
+    liveEndY = liveSlope * liveDrawLastBar + liveIntercept
 
     // Determine color based on slope direction
     liveBaseColor = liveSlope >= 0 ? uptrendColor : downtrendColor
@@ -802,8 +818,8 @@ if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
     liveFillColor = color.new(liveBaseColor, fillTransparency)
 
     // Draw main live regression line
-    liveRegressionLine := line.new(liveFirstBarIndex, liveStartY,
-         liveLastBarIndex, liveEndY,
+    liveRegressionLine := line.new(liveDrawFirstBar, liveStartY,
+         liveDrawLastBar, liveEndY,
          color=liveLineColor,
          width=lineWidth,
          style=line.style_dashed)
@@ -813,21 +829,21 @@ if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
         liveUpperStartY = liveStartY + upperDeviation * liveStdDev
         liveUpperEndY = liveEndY + upperDeviation * liveStdDev
 
-        liveUpperChannelLine := line.new(liveFirstBarIndex, liveUpperStartY,
-             liveLastBarIndex, liveUpperEndY,
+        liveUpperChannelLine := line.new(liveDrawFirstBar, liveUpperStartY,
+             liveDrawLastBar, liveUpperEndY,
              color=liveLineColor,
              width=lineWidth,
-             style=line.style_dotted)
+             style=line.style_solid)
 
     if showLowerChannel
         liveLowerStartY = liveStartY - lowerDeviation * liveStdDev
         liveLowerEndY = liveEndY - lowerDeviation * liveStdDev
 
-        liveLowerChannelLine := line.new(liveFirstBarIndex, liveLowerStartY,
-             liveLastBarIndex, liveLowerEndY,
+        liveLowerChannelLine := line.new(liveDrawFirstBar, liveLowerStartY,
+             liveDrawLastBar, liveLowerEndY,
              color=liveLineColor,
              width=lineWidth,
-             style=line.style_dotted)
+             style=line.style_solid)
 
     // Fill between live channels (only if both are shown)
     if showUpperChannel and showLowerChannel
