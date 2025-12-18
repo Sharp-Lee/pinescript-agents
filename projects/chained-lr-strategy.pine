@@ -178,6 +178,90 @@ tablePosition = input.string("Top Right",
 var int MAX_ARRAY_SIZE = 50000
 
 // ============================================================================
+// USER-DEFINED TYPES
+// ============================================================================
+
+type Regression
+    // Time coordinates (for xloc.bar_time - no lookback limit)
+    int startTime
+    int endTime
+
+    // Bar indices (for Y calculation: y = slope * barIndex + intercept)
+    int startBarIndex
+    int endBarIndex
+
+    // Regression parameters
+    float slope
+    float intercept
+    float stdDev
+    float pearsonR
+
+    // State flags
+    bool isLive = false
+    bool isOriginal = false
+
+    // Drawing objects (managed internally)
+    line centerLine = na
+    line upperLine = na
+    line lowerLine = na
+    linefill fill = na
+
+// ============================================================================
+// UDT METHODS
+// ============================================================================
+
+// Delete all drawing objects for this regression
+method delete(Regression this) =>
+    if not na(this.centerLine)
+        line.delete(this.centerLine)
+    if not na(this.upperLine)
+        line.delete(this.upperLine)
+    if not na(this.lowerLine)
+        line.delete(this.lowerLine)
+    if not na(this.fill)
+        linefill.delete(this.fill)
+    this.centerLine := na
+    this.upperLine := na
+    this.lowerLine := na
+    this.fill := na
+
+// Calculate Y value at a given bar index
+method calculateY(Regression this, int barIdx) =>
+    this.slope * barIdx + this.intercept
+
+// Draw all regression lines using xloc.bar_time (no 5000 bar limit!)
+method draw(Regression this, color baseColor, int width, float upperDev, float lowerDev, int fillTransp, bool showUpper, bool showLower) =>
+    // Delete existing drawings first
+    this.delete()
+
+    // Calculate Y values at endpoints using bar indices
+    startY = this.calculateY(this.startBarIndex)
+    endY = this.calculateY(this.endBarIndex)
+
+    // Determine colors
+    lineColor = color.new(baseColor, 40)
+    fillColor = color.new(baseColor, fillTransp)
+
+    // Draw center line using TIME coordinates (no 5000 bar limit!)
+    this.centerLine := line.new(this.startTime, startY, this.endTime, endY, xloc=xloc.bar_time, color=lineColor, width=width, style=line.style_dashed)
+
+    // Draw upper channel if enabled
+    if showUpper
+        upperStartY = startY + upperDev * this.stdDev
+        upperEndY = endY + upperDev * this.stdDev
+        this.upperLine := line.new(this.startTime, upperStartY, this.endTime, upperEndY, xloc=xloc.bar_time, color=lineColor, width=width, style=line.style_solid)
+
+    // Draw lower channel if enabled
+    if showLower
+        lowerStartY = startY - lowerDev * this.stdDev
+        lowerEndY = endY - lowerDev * this.stdDev
+        this.lowerLine := line.new(this.startTime, lowerStartY, this.endTime, lowerEndY, xloc=xloc.bar_time, color=lineColor, width=width, style=line.style_solid)
+
+    // Add fill between channels if both shown
+    if showUpper and showLower and not na(this.upperLine) and not na(this.lowerLine)
+        this.fill := linefill.new(this.upperLine, this.lowerLine, color=fillColor)
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 
@@ -260,6 +344,8 @@ var float origStdDev = na
 var int origRangeSize = 0
 var int origFirstBarIndex = na
 var int origLastBarIndex = na
+var int origFirstTime = na
+var int origLastTime = na
 var bool origCalculated = false
 
 // Initialize arrays and variables for LIVE regression
@@ -272,6 +358,8 @@ var float liveStdDev = na
 var int liveRangeSize = 0
 var int liveFirstBarIndex = na
 var int liveLastBarIndex = na
+var int liveFirstTime = na
+var int liveLastTime = na
 
 // Breakout tracking state variables
 var bool breakoutConfirmed = false
@@ -286,6 +374,8 @@ var float currentStaticIntercept = na
 var float currentStaticStdDev = na
 var int currentStaticFirstBar = na
 var int currentStaticLastBar = na
+var int currentStaticFirstTime = na
+var int currentStaticLastTime = na
 var float currentStaticPearsonR = na
 var int chainCount = 0  // How many times we've chained (0 = original only)
 
@@ -293,7 +383,7 @@ var int chainCount = 0  // How many times we've chained (0 = original only)
 var bool wasAboveThreshold = false
 var int lastBarAboveThreshold = na
 
-// Arrays to store historical chained regressions for drawing
+// Arrays to store historical chained regressions for drawing (DEPRECATED - will be removed)
 var array<float> chainedSlopes = array.new<float>()
 var array<float> chainedIntercepts = array.new<float>()
 var array<float> chainedStdDevs = array.new<float>()
@@ -301,11 +391,26 @@ var array<int> chainedFirstBars = array.new<int>()
 var array<int> chainedLastBars = array.new<int>()
 var array<float> chainedPearsonRs = array.new<float>()
 
+// ============================================================================
+// UDT-BASED STORAGE (new architecture)
+// ============================================================================
+
+// Array of all finalized (locked) regressions
+var array<Regression> regressions = array.new<Regression>()
+
+// The currently updating live regression (or na if not active)
+var Regression liveRegression = na
+
+// The original regression (first one, never removed)
+var Regression originalRegression = na
+
 // Collect data points for ORIGINAL regression (only within time range)
 if isInRange(time, startTime, endTime)
     if na(origFirstBarIndex)
         origFirstBarIndex := bar_index
+        origFirstTime := time
     origLastBarIndex := bar_index
+    origLastTime := time
 
     // Prevent array overflow - only collect if under limit
     if array.size(origXValues) < MAX_ARRAY_SIZE
@@ -345,7 +450,13 @@ if origRangeSize >= 2 and not origCalculated
             currentStaticStdDev := origStdDev
             currentStaticFirstBar := origFirstBarIndex
             currentStaticLastBar := origLastBarIndex
+            currentStaticFirstTime := origFirstTime
+            currentStaticLastTime := origLastTime
             currentStaticPearsonR := origPearsonR
+
+        // Create the original regression UDT (first time only)
+        if na(originalRegression)
+            originalRegression := Regression.new(startTime=origFirstTime, endTime=origLastTime, startBarIndex=origFirstBarIndex, endBarIndex=origLastBarIndex, slope=origSlope, intercept=origIntercept, stdDev=origStdDev, pearsonR=origPearsonR, isLive=false, isOriginal=true)
 
 // ============================================================================
 // BREAKOUT DETECTION, CHAINING, AND RESET LOGIC
@@ -384,10 +495,15 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
                 array.push(chainedLastBars, currentStaticLastBar)
                 array.push(chainedPearsonRs, currentStaticPearsonR)
 
+                // Also push to UDT array
+                lockedReg = Regression.new(startTime=currentStaticFirstTime, endTime=currentStaticLastTime, startBarIndex=currentStaticFirstBar, endBarIndex=currentStaticLastBar, slope=currentStaticSlope, intercept=currentStaticIntercept, stdDev=currentStaticStdDev, pearsonR=currentStaticPearsonR, isLive=false, isOriginal=false)
+                array.push(regressions, lockedReg)
+
             // Calculate regression values at the bar BEFORE R dropped (lastBarAboveThreshold)
             // We need to recalculate with data up to that point
             // For simplicity, we'll use the current live values but end at lastBarAboveThreshold
             lockEndBar = lastBarAboveThreshold
+            lockEndTime = time[bar_index - lastBarAboveThreshold]
 
             // Lock the dynamic regression as the new current static
             currentStaticSlope := liveSlope
@@ -395,6 +511,8 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
             currentStaticStdDev := liveStdDev
             currentStaticFirstBar := liveFirstBarIndex
             currentStaticLastBar := lockEndBar
+            currentStaticFirstTime := liveFirstTime
+            currentStaticLastTime := lockEndTime
             currentStaticPearsonR := livePearsonR[1]  // Use previous R (when it was still valid)
             chainCount := chainCount + 1
 
@@ -416,6 +534,13 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
             liveRangeSize := 0
             liveFirstBarIndex := na
             liveLastBarIndex := na
+            liveFirstTime := na
+            liveLastTime := na
+
+            // Clear liveRegression UDT
+            if not na(liveRegression)
+                liveRegression.delete()
+                liveRegression := na
 
     // =========================================================================
     // BAR-BASED TIMEOUT: Reset and restart if R threshold not reached in time
@@ -431,6 +556,10 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
             array.push(chainedLastBars, currentStaticLastBar)
             array.push(chainedPearsonRs, currentStaticPearsonR)
 
+            // Also push to UDT array
+            lockedReg = Regression.new(startTime=currentStaticFirstTime, endTime=currentStaticLastTime, startBarIndex=currentStaticFirstBar, endBarIndex=currentStaticLastBar, slope=currentStaticSlope, intercept=currentStaticIntercept, stdDev=currentStaticStdDev, pearsonR=currentStaticPearsonR, isLive=false, isOriginal=false)
+            array.push(regressions, lockedReg)
+
         // Start fresh regression from current bar
         // Use the live regression data as the new static (even with low R)
         currentStaticSlope := liveSlope
@@ -438,6 +567,8 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
         currentStaticStdDev := liveStdDev
         currentStaticFirstBar := liveFirstBarIndex
         currentStaticLastBar := bar_index
+        currentStaticFirstTime := liveFirstTime
+        currentStaticLastTime := time
         currentStaticPearsonR := livePearsonR
         chainCount := chainCount + 1
 
@@ -459,6 +590,13 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
         liveRangeSize := 0
         liveFirstBarIndex := na
         liveLastBarIndex := na
+        liveFirstTime := na
+        liveLastTime := na
+
+        // Clear liveRegression UDT
+        if not na(liveRegression)
+            liveRegression.delete()
+            liveRegression := na
 
     // =========================================================================
     // RESET LOGIC: If dynamic is active and price returns inside channel
@@ -481,6 +619,13 @@ if origCalculated and showLive and not na(currentStaticSlope) and not na(current
         liveRangeSize := 0
         liveFirstBarIndex := na
         liveLastBarIndex := na
+        liveFirstTime := na
+        liveLastTime := na
+
+        // Clear liveRegression UDT
+        if not na(liveRegression)
+            liveRegression.delete()
+            liveRegression := na
 
     // =========================================================================
     // BREAKOUT DETECTION: Only if not already in dynamic mode
@@ -508,7 +653,10 @@ if showLive and isDynamicActive and not na(breakoutBarIndex)
     // Initialize live arrays on first collection after breakout
     if na(liveFirstBarIndex)
         liveFirstBarIndex := breakoutBarIndex
+        // Get time at breakout bar (may be in the past)
+        liveFirstTime := time[bar_index - breakoutBarIndex]
     liveLastBarIndex := bar_index
+    liveLastTime := time
 
     // Add new data point
     array.push(liveXValues, bar_index)
@@ -521,6 +669,8 @@ if showLive and isDynamicActive and not na(breakoutBarIndex)
         array.shift(liveYValues)
         // Update first bar index to reflect removed data
         liveFirstBarIndex := int(array.get(liveXValues, 0))
+        // Also update first time (approximate - use current minus offset)
+        liveFirstTime := time[bar_index - liveFirstBarIndex]
 
     liveRangeSize := array.size(liveXValues)
 
@@ -545,6 +695,19 @@ if showLive and isDynamicActive and liveRangeSize >= 2
         sumSquaredLiveResiduals += residual * residual
 
     liveStdDev := math.sqrt(sumSquaredLiveResiduals / liveRangeSize)
+
+    // Create or update the liveRegression UDT
+    if na(liveRegression)
+        liveRegression := Regression.new(startTime=liveFirstTime, endTime=liveLastTime, startBarIndex=liveFirstBarIndex, endBarIndex=liveLastBarIndex, slope=liveSlope, intercept=liveIntercept, stdDev=liveStdDev, pearsonR=livePearsonR, isLive=true, isOriginal=false)
+    else
+        liveRegression.startTime := liveFirstTime
+        liveRegression.endTime := liveLastTime
+        liveRegression.startBarIndex := liveFirstBarIndex
+        liveRegression.endBarIndex := liveLastBarIndex
+        liveRegression.slope := liveSlope
+        liveRegression.intercept := liveIntercept
+        liveRegression.stdDev := liveStdDev
+        liveRegression.pearsonR := livePearsonR
 
 // ============================================================================
 // STRATEGY ORDERS
@@ -588,282 +751,49 @@ if enableStrategy and newBreakout
              comment_loss="ShortSL")
 
 // ============================================================================
-// DRAWING LINES
+// DRAWING LINES (UDT-based with xloc.bar_time - no 5000 bar limit!)
 // ============================================================================
-
-// Delete previous lines
-var line origRegressionLine = na
-var line origUpperChannelLine = na
-var line origLowerChannelLine = na
-var linefill origChannelFill = na
-
-var line liveRegressionLine = na
-var line liveUpperChannelLine = na
-var line liveLowerChannelLine = na
-var linefill liveChannelFill = na
-
-// Current static regression lines (for chained regressions)
-var line currentStaticLine = na
-var line currentStaticUpperLine = na
-var line currentStaticLowerLine = na
-var linefill currentStaticFill = na
-
-// Arrays to hold chained regression line objects
-var array<line> chainedLines = array.new<line>()
-var array<line> chainedUpperLines = array.new<line>()
-var array<line> chainedLowerLines = array.new<line>()
-var array<linefill> chainedFills = array.new<linefill>()
 
 // Use condition that works in both live and replay modes
 shouldRedraw = barstate.islast or barstate.isconfirmed
 
+// Delete all existing drawings when redrawing
 if shouldRedraw
-    // Delete original regression lines
-    if not na(origRegressionLine)
-        line.delete(origRegressionLine)
-    if not na(origUpperChannelLine)
-        line.delete(origUpperChannelLine)
-    if not na(origLowerChannelLine)
-        line.delete(origLowerChannelLine)
-    if not na(origChannelFill)
-        linefill.delete(origChannelFill)
+    // Delete original regression drawings
+    if not na(originalRegression)
+        originalRegression.delete()
 
-    // Delete live regression lines
-    if not na(liveRegressionLine)
-        line.delete(liveRegressionLine)
-    if not na(liveUpperChannelLine)
-        line.delete(liveUpperChannelLine)
-    if not na(liveLowerChannelLine)
-        line.delete(liveLowerChannelLine)
-    if not na(liveChannelFill)
-        linefill.delete(liveChannelFill)
+    // Delete all chained regression drawings
+    for reg in regressions
+        reg.delete()
 
-    // Delete current static lines
-    if not na(currentStaticLine)
-        line.delete(currentStaticLine)
-    if not na(currentStaticUpperLine)
-        line.delete(currentStaticUpperLine)
-    if not na(currentStaticLowerLine)
-        line.delete(currentStaticLowerLine)
-    if not na(currentStaticFill)
-        linefill.delete(currentStaticFill)
+    // Delete live regression drawings
+    if not na(liveRegression)
+        liveRegression.delete()
 
-    // Delete all chained regression lines (with size checks to avoid empty array errors)
-    if array.size(chainedLines) > 0
-        for i = 0 to array.size(chainedLines) - 1
-            line.delete(array.get(chainedLines, i))
-        array.clear(chainedLines)
-    if array.size(chainedUpperLines) > 0
-        for i = 0 to array.size(chainedUpperLines) - 1
-            line.delete(array.get(chainedUpperLines, i))
-        array.clear(chainedUpperLines)
-    if array.size(chainedLowerLines) > 0
-        for i = 0 to array.size(chainedLowerLines) - 1
-            line.delete(array.get(chainedLowerLines, i))
-        array.clear(chainedLowerLines)
-    if array.size(chainedFills) > 0
-        for i = 0 to array.size(chainedFills) - 1
-            linefill.delete(array.get(chainedFills, i))
-        array.clear(chainedFills)
+// Draw ORIGINAL regression using UDT method
+if showStatic and not na(originalRegression) and shouldRedraw
+    baseColor = originalRegression.slope >= 0 ? uptrendColor : downtrendColor
+    originalRegression.draw(baseColor, lineWidth, upperDeviation, lowerDeviation, fillTransparency, showUpperChannel, showLowerChannel)
 
-// Draw ORIGINAL regression (always show as the first/base regression)
-if showStatic and origRangeSize >= 2 and shouldRedraw
-    // Clamp start bar to accessible history, keep end bar as-is
-    minAccessibleBar = bar_index - math.min(last_bar_index, 5000)
-    drawFirstBar = math.max(origFirstBarIndex, minAccessibleBar)
-    drawLastBar = origLastBarIndex
+// Draw all CHAINED regressions using UDT method
+if showStatic and shouldRedraw and array.size(regressions) > 0
+    for reg in regressions
+        baseColor = reg.slope >= 0 ? uptrendColor : downtrendColor
+        reg.draw(baseColor, lineWidth, upperDeviation, lowerDeviation, fillTransparency, showUpperChannel, showLowerChannel)
 
-    // Only draw if we have a valid range (end is after start)
-    if drawLastBar > drawFirstBar
-        origStartY = origSlope * drawFirstBar + origIntercept
-        origEndY = origSlope * drawLastBar + origIntercept
+// Draw CURRENT STATIC regression (the most recent locked regression)
+// This draws using the old variables temporarily until we can fully migrate
+if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope) and not na(currentStaticFirstTime)
+    // Create a temporary Regression for drawing
+    csReg = Regression.new(startTime=currentStaticFirstTime, endTime=currentStaticLastTime, startBarIndex=currentStaticFirstBar, endBarIndex=currentStaticLastBar, slope=currentStaticSlope, intercept=currentStaticIntercept, stdDev=currentStaticStdDev, pearsonR=currentStaticPearsonR, isLive=false, isOriginal=false)
+    baseColor = csReg.slope >= 0 ? uptrendColor : downtrendColor
+    csReg.draw(baseColor, lineWidth, upperDeviation, lowerDeviation, fillTransparency, showUpperChannel, showLowerChannel)
 
-        // Determine color based on slope direction
-        origBaseColor = origSlope >= 0 ? uptrendColor : downtrendColor
-        origLineColor = color.new(origBaseColor, 40)
-        origFillColor = color.new(origBaseColor, fillTransparency)
-
-        origRegressionLine := line.new(drawFirstBar, origStartY,
-             drawLastBar, origEndY,
-             color=origLineColor,
-             width=lineWidth,
-             style=line.style_dashed)
-
-        if showUpperChannel
-            origUpperStartY = origStartY + upperDeviation * origStdDev
-            origUpperEndY = origEndY + upperDeviation * origStdDev
-            origUpperChannelLine := line.new(drawFirstBar, origUpperStartY,
-                 drawLastBar, origUpperEndY,
-                 color=origLineColor,
-                 width=lineWidth,
-                 style=line.style_solid)
-
-        if showLowerChannel
-            origLowerStartY = origStartY - lowerDeviation * origStdDev
-            origLowerEndY = origEndY - lowerDeviation * origStdDev
-            origLowerChannelLine := line.new(drawFirstBar, origLowerStartY,
-                 drawLastBar, origLowerEndY,
-                 color=origLineColor,
-                 width=lineWidth,
-                 style=line.style_solid)
-
-        if showUpperChannel and showLowerChannel
-            origChannelFill := linefill.new(origUpperChannelLine, origLowerChannelLine,
-                 color=origFillColor)
-
-// Draw CHAINED regressions (historical locked regressions)
-if showStatic and shouldRedraw and array.size(chainedSlopes) > 0
-    for i = 0 to array.size(chainedSlopes) - 1
-        cSlope = array.get(chainedSlopes, i)
-        cIntercept = array.get(chainedIntercepts, i)
-        cStdDev = array.get(chainedStdDevs, i)
-        cFirstBar = array.get(chainedFirstBars, i)
-        cLastBar = array.get(chainedLastBars, i)
-
-        // Clamp start bar to accessible history, keep end bar as-is
-        cMinAccessibleBar = bar_index - math.min(last_bar_index, 5000)
-        cDrawFirstBar = math.max(cFirstBar, cMinAccessibleBar)
-        cDrawLastBar = cLastBar
-
-        // Only draw if we have a valid range
-        if cDrawLastBar > cDrawFirstBar
-            cStartY = cSlope * cDrawFirstBar + cIntercept
-            cEndY = cSlope * cDrawLastBar + cIntercept
-
-            // Determine color based on slope direction
-            cBaseColor = cSlope >= 0 ? uptrendColor : downtrendColor
-            cLineColor = color.new(cBaseColor, 40)
-            cFillColor = color.new(cBaseColor, fillTransparency)
-
-            cLine = line.new(cDrawFirstBar, cStartY, cDrawLastBar, cEndY,
-                 color=cLineColor,
-                 width=lineWidth,
-                 style=line.style_dashed)
-            array.push(chainedLines, cLine)
-
-            // Track upper/lower lines for fill
-            line cUpperLine = na
-            line cLowerLine = na
-
-            if showUpperChannel
-                cUpperStartY = cStartY + upperDeviation * cStdDev
-                cUpperEndY = cEndY + upperDeviation * cStdDev
-                cUpperLine := line.new(cDrawFirstBar, cUpperStartY, cDrawLastBar, cUpperEndY,
-                     color=cLineColor,
-                     width=lineWidth,
-                     style=line.style_solid)
-                array.push(chainedUpperLines, cUpperLine)
-
-            if showLowerChannel
-                cLowerStartY = cStartY - lowerDeviation * cStdDev
-                cLowerEndY = cEndY - lowerDeviation * cStdDev
-                cLowerLine := line.new(cDrawFirstBar, cLowerStartY, cDrawLastBar, cLowerEndY,
-                     color=cLineColor,
-                     width=lineWidth,
-                     style=line.style_solid)
-                array.push(chainedLowerLines, cLowerLine)
-
-            // Add fill between channels
-            if showUpperChannel and showLowerChannel and not na(cUpperLine) and not na(cLowerLine)
-                cFill = linefill.new(cUpperLine, cLowerLine, color=cFillColor)
-                array.push(chainedFills, cFill)
-
-// Draw CURRENT STATIC regression (the most recent locked regression used for breakout detection)
-// Only draw if it's different from original (i.e., we've chained at least once)
-if showStatic and shouldRedraw and chainCount > 0 and not na(currentStaticSlope)
-    // Clamp start bar to accessible history, keep end bar as-is
-    csMinAccessibleBar = bar_index - math.min(last_bar_index, 5000)
-    csDrawFirstBar = math.max(currentStaticFirstBar, csMinAccessibleBar)
-    csDrawLastBar = currentStaticLastBar
-
-    // Only draw if we have a valid range
-    if csDrawLastBar > csDrawFirstBar
-        csStartY = currentStaticSlope * csDrawFirstBar + currentStaticIntercept
-        csEndY = currentStaticSlope * csDrawLastBar + currentStaticIntercept
-
-        // Determine color based on slope direction
-        csBaseColor = currentStaticSlope >= 0 ? uptrendColor : downtrendColor
-        csLineColor = color.new(csBaseColor, 40)
-        csFillColor = color.new(csBaseColor, fillTransparency)
-
-        currentStaticLine := line.new(csDrawFirstBar, csStartY,
-             csDrawLastBar, csEndY,
-             color=csLineColor,
-             width=lineWidth,
-             style=line.style_dashed)
-
-        if showUpperChannel
-            csUpperStartY = csStartY + upperDeviation * currentStaticStdDev
-            csUpperEndY = csEndY + upperDeviation * currentStaticStdDev
-            currentStaticUpperLine := line.new(csDrawFirstBar, csUpperStartY,
-                 csDrawLastBar, csUpperEndY,
-                 color=csLineColor,
-                 width=lineWidth,
-                 style=line.style_solid)
-
-        if showLowerChannel
-            csLowerStartY = csStartY - lowerDeviation * currentStaticStdDev
-            csLowerEndY = csEndY - lowerDeviation * currentStaticStdDev
-            currentStaticLowerLine := line.new(csDrawFirstBar, csLowerStartY,
-                 csDrawLastBar, csLowerEndY,
-                 color=csLineColor,
-                 width=lineWidth,
-                 style=line.style_solid)
-
-        if showUpperChannel and showLowerChannel
-            currentStaticFill := linefill.new(currentStaticUpperLine, currentStaticLowerLine,
-                 color=csFillColor)
-
-// Draw LIVE regression and channel lines (only when dynamic is active after breakout)
-if showLive and isDynamicActive and liveRangeSize >= 2 and shouldRedraw
-    // Clamp start bar to accessible history, keep end bar as-is
-    liveMinAccessibleBar = bar_index - math.min(last_bar_index, 5000)
-    liveDrawFirstBar = math.max(liveFirstBarIndex, liveMinAccessibleBar)
-    liveDrawLastBar = liveLastBarIndex
-
-    // Only draw if we have a valid range
-    if liveDrawLastBar > liveDrawFirstBar
-        // Calculate regression values at start and end points
-        liveStartY = liveSlope * liveDrawFirstBar + liveIntercept
-        liveEndY = liveSlope * liveDrawLastBar + liveIntercept
-
-        // Determine color based on slope direction
-        liveBaseColor = liveSlope >= 0 ? uptrendColor : downtrendColor
-        liveLineColor = color.new(liveBaseColor, 40)
-        liveFillColor = color.new(liveBaseColor, fillTransparency)
-
-        // Draw main live regression line
-        liveRegressionLine := line.new(liveDrawFirstBar, liveStartY,
-             liveDrawLastBar, liveEndY,
-             color=liveLineColor,
-             width=lineWidth,
-             style=line.style_dashed)
-
-        // Draw live channel lines if enabled
-        if showUpperChannel
-            liveUpperStartY = liveStartY + upperDeviation * liveStdDev
-            liveUpperEndY = liveEndY + upperDeviation * liveStdDev
-
-            liveUpperChannelLine := line.new(liveDrawFirstBar, liveUpperStartY,
-                 liveDrawLastBar, liveUpperEndY,
-                 color=liveLineColor,
-                 width=lineWidth,
-                 style=line.style_solid)
-
-        if showLowerChannel
-            liveLowerStartY = liveStartY - lowerDeviation * liveStdDev
-            liveLowerEndY = liveEndY - lowerDeviation * liveStdDev
-
-            liveLowerChannelLine := line.new(liveDrawFirstBar, liveLowerStartY,
-                 liveDrawLastBar, liveLowerEndY,
-                 color=liveLineColor,
-                 width=lineWidth,
-                 style=line.style_solid)
-
-        // Fill between live channels (only if both are shown)
-        if showUpperChannel and showLowerChannel
-            liveChannelFill := linefill.new(liveUpperChannelLine, liveLowerChannelLine,
-                 color=liveFillColor)
+// Draw LIVE regression using UDT method
+if showLive and isDynamicActive and not na(liveRegression) and shouldRedraw
+    baseColor = liveRegression.slope >= 0 ? uptrendColor : downtrendColor
+    liveRegression.draw(baseColor, lineWidth, upperDeviation, lowerDeviation, fillTransparency, showUpperChannel, showLowerChannel)
 
 
 // ============================================================================
