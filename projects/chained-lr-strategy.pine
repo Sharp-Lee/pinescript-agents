@@ -144,7 +144,7 @@ downtrendColor = input.color(#ef5350,
      tooltip="Base color for downtrend (negative slope) regression channels",
      group="Visual Settings")
 
-fillTransparency = input.int(85,
+fillTransparency = input.int(93,
      "Fill Transparency",
      minval=0,
      maxval=100,
