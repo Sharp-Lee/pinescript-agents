@@ -1,0 +1,123 @@
+//@version=6
+indicator("ATR Trailing Stop", shorttitle="ATR Stop", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// ATR Settings
+atrPeriod = input.int(14, "ATR Period", minval=1, group="ATR Settings", tooltip="Period for ATR calculation")
+atrMultiplier = input.float(2.0, "ATR Multiplier", minval=0.1, step=0.1, group="ATR Settings", tooltip="Multiplier for stop distance")
+
+// Stop Settings
+stopType = input.string("Trailing", "Stop Type", options=["Trailing", "Fixed Entry", "Chandelier"], group="Stop Settings")
+useClose = input.bool(true, "Use Close for Trigger", group="Stop Settings", tooltip="Use close price vs wick for stop trigger")
+
+// Position Settings
+showLong = input.bool(true, "Show Long Stops", group="Position")
+showShort = input.bool(true, "Show Short Stops", group="Position")
+entryPrice = input.float(0.0, "Fixed Entry Price", group="Position", tooltip="Manual entry price for Fixed Entry mode (0 = auto)")
+
+// Visual Settings
+showLabels = input.bool(true, "Show Price Labels", group="Visual")
+showRiskReward = input.bool(true, "Show Risk/Reward Zones", group="Visual")
+rrRatio = input.float(2.0, "R:R Ratio", minval=0.5, step=0.5, group="Visual", tooltip="Risk to Reward ratio for target")
+
+// Colors
+longColor = input.color(color.green, "Long Color", group="Colors")
+shortColor = input.color(color.red, "Short Color", group="Colors")
+targetColor = input.color(color.blue, "Target Color", group="Colors")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+atr = ta.atr(atrPeriod)
+atrStop = atr * atrMultiplier
+
+// Trailing Stop Logic
+var float longStop = na
+var float shortStop = na
+var float highestSinceEntry = high
+var float lowestSinceEntry = low
+
+// Update trailing stops
+if stopType == "Trailing"
+    highestSinceEntry := math.max(highestSinceEntry, high)
+    lowestSinceEntry := math.min(lowestSinceEntry, low)
+    longStop := highestSinceEntry - atrStop
+    shortStop := lowestSinceEntry + atrStop
+else if stopType == "Chandelier"
+    highestSinceEntry := ta.highest(high, atrPeriod)
+    lowestSinceEntry := ta.lowest(low, atrPeriod)
+    longStop := highestSinceEntry - atrStop
+    shortStop := lowestSinceEntry + atrStop
+else  // Fixed Entry
+    fixedEntry = entryPrice > 0 ? entryPrice : close
+    longStop := fixedEntry - atrStop
+    shortStop := fixedEntry + atrStop
+
+// Prevent stop from moving against trade
+if showLong
+    longStop := math.max(longStop, nz(longStop[1]))
+if showShort
+    shortStop := math.min(shortStop, nz(shortStop[1], 999999))
+
+// Stop hit detection
+triggerPrice = useClose ? close : low
+longStopHit = showLong and triggerPrice < longStop
+shortStopHit = showShort and (useClose ? close : high) > shortStop
+
+// Risk and Reward calculations
+longRisk = close - longStop
+shortRisk = shortStop - close
+longTarget = close + longRisk * rrRatio
+shortTarget = close - shortRisk * rrRatio
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// Long Stop
+plot(showLong ? longStop : na, "Long Stop", color=longColor, linewidth=2, style=plot.style_linebr)
+plot(showLong and showRiskReward ? longTarget : na, "Long Target", color=targetColor, linewidth=1, style=plot.style_linebr)
+
+// Short Stop
+plot(showShort ? shortStop : na, "Short Stop", color=shortColor, linewidth=2, style=plot.style_linebr)
+plot(showShort and showRiskReward ? shortTarget : na, "Short Target", color=targetColor, linewidth=1, style=plot.style_linebr)
+
+// Risk zones
+p1 = plot(showLong and showRiskReward ? close : na, "Long Entry", color=color.new(color.gray, 100), display=display.none)
+p2 = plot(showLong and showRiskReward ? longStop : na, "Long Stop Fill", color=color.new(color.gray, 100), display=display.none)
+p3 = plot(showLong and showRiskReward ? longTarget : na, "Long Target Fill", color=color.new(color.gray, 100), display=display.none)
+fill(p1, p2, color=color.new(longColor, 85), title="Long Risk Zone")
+fill(p1, p3, color=color.new(targetColor, 90), title="Long Reward Zone")
+
+// Stop hit signals
+plotshape(longStopHit ? longStop : na, "Long Stop Hit", style=shape.xcross, location=location.absolute, color=longColor, size=size.small)
+plotshape(shortStopHit ? shortStop : na, "Short Stop Hit", style=shape.xcross, location=location.absolute, color=shortColor, size=size.small)
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+var table infoTable = table.new(position.top_right, 2, 6, bgcolor=color.new(color.black, 80))
+if barstate.islast
+    table.cell(infoTable, 0, 0, "ATR (" + str.tostring(atrPeriod) + ")", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 0, str.tostring(atr, "#.####"), text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 0, 1, "Stop Distance", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 1, str.tostring(atrStop, "#.####"), text_color=color.white, text_size=size.small)
+    if showLong
+        table.cell(infoTable, 0, 2, "Long Stop", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 2, str.tostring(longStop, "#.####"), text_color=longColor, text_size=size.small)
+        table.cell(infoTable, 0, 3, "Long Risk %", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 3, str.tostring(longRisk / close * 100, "#.##") + "%", text_color=longColor, text_size=size.small)
+    if showShort
+        table.cell(infoTable, 0, 4, "Short Stop", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 4, str.tostring(shortStop, "#.####"), text_color=shortColor, text_size=size.small)
+        table.cell(infoTable, 0, 5, "Short Risk %", text_color=color.white, text_size=size.small)
+        table.cell(infoTable, 1, 5, str.tostring(shortRisk / close * 100, "#.##") + "%", text_color=shortColor, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(longStopHit, "Long Stop Hit", "Price hit long trailing stop")
+alertcondition(shortStopHit, "Short Stop Hit", "Price hit short trailing stop")
+alertcondition(close > longTarget, "Long Target Hit", "Price reached long target")
+alertcondition(close < shortTarget, "Short Target Hit", "Price reached short target")

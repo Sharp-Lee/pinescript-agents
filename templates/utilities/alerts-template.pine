@@ -1,0 +1,144 @@
+//@version=6
+indicator("Alert Conditions Template", shorttitle="Alerts", overlay=true)
+
+// ============================================================================
+// DESCRIPTION
+// ============================================================================
+// This template provides a comprehensive set of alert conditions that can be
+// customized for any indicator or strategy. Copy and modify as needed.
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// Price Alert Settings
+priceLevel = input.float(0.0, "Price Alert Level", group="Price Alerts", tooltip="Set to 0 to disable")
+priceAlertType = input.string("Cross", "Price Alert Type", options=["Cross", "Above", "Below"], group="Price Alerts")
+
+// Moving Average Settings
+maLength = input.int(20, "MA Length", minval=1, group="Moving Average")
+maType = input.string("EMA", "MA Type", options=["SMA", "EMA", "WMA"], group="Moving Average")
+
+// RSI Settings
+rsiLength = input.int(14, "RSI Length", minval=1, group="RSI")
+rsiOversold = input.int(30, "RSI Oversold", minval=0, maxval=50, group="RSI")
+rsiOverbought = input.int(70, "RSI Overbought", minval=50, maxval=100, group="RSI")
+
+// Candle Pattern Settings
+showCandleAlerts = input.bool(true, "Enable Candle Alerts", group="Candle Patterns")
+
+// Volume Settings
+volumeLength = input.int(20, "Volume MA Length", minval=1, group="Volume")
+volumeMultiplier = input.float(2.0, "Volume Spike Multiplier", minval=1.0, step=0.1, group="Volume")
+
+// Time Settings
+alertHour = input.int(9, "Alert at Hour (UTC)", minval=0, maxval=23, group="Time")
+alertMinute = input.int(30, "Alert at Minute", minval=0, maxval=59, group="Time")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// Moving Average
+ma = switch maType
+    "SMA" => ta.sma(close, maLength)
+    "EMA" => ta.ema(close, maLength)
+    "WMA" => ta.wma(close, maLength)
+
+// RSI
+rsi = ta.rsi(close, rsiLength)
+
+// Volume
+volumeMA = ta.sma(volume, volumeLength)
+volumeSpike = volume > volumeMA * volumeMultiplier
+
+// Candle Patterns
+bullishEngulfing = close > open and close[1] < open[1] and close > open[1] and open < close[1]
+bearishEngulfing = close < open and close[1] > open[1] and close < open[1] and open > close[1]
+doji = math.abs(close - open) < (high - low) * 0.1
+hammer = (high - low) > 3 * math.abs(close - open) and (close - low) / (high - low) > 0.6 and (open - low) / (high - low) > 0.6
+shootingStar = (high - low) > 3 * math.abs(close - open) and (high - close) / (high - low) > 0.6 and (high - open) / (high - low) > 0.6
+
+// Price action
+newHigh = high > ta.highest(high[1], 20)
+newLow = low < ta.lowest(low[1], 20)
+priceAboveMA = close > ma
+priceBelowMA = close < ma
+
+// Time conditions
+isAlertTime = hour == alertHour and minute == alertMinute
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+plot(ma, "MA", color=color.blue, linewidth=1)
+plotshape(bullishEngulfing and showCandleAlerts ? low : na, "Bullish Engulfing", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.tiny)
+plotshape(bearishEngulfing and showCandleAlerts ? high : na, "Bearish Engulfing", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny)
+plotshape(volumeSpike ? low : na, "Volume Spike", style=shape.circle, location=location.belowbar, color=color.purple, size=size.tiny)
+
+// Price level line
+hline(priceLevel != 0 ? priceLevel : na, "Price Level", color=color.orange, linestyle=hline.style_dashed)
+
+// ============================================================================
+// ALERT CONDITIONS - PRICE
+// ============================================================================
+alertcondition(priceLevel != 0 and ta.cross(close, priceLevel), "Price Cross Level", "Price crossed alert level")
+alertcondition(priceLevel != 0 and close > priceLevel and close[1] <= priceLevel, "Price Above Level", "Price moved above alert level")
+alertcondition(priceLevel != 0 and close < priceLevel and close[1] >= priceLevel, "Price Below Level", "Price moved below alert level")
+
+// ============================================================================
+// ALERT CONDITIONS - MOVING AVERAGE
+// ============================================================================
+alertcondition(ta.crossover(close, ma), "Price Cross Above MA", "Price crossed above moving average")
+alertcondition(ta.crossunder(close, ma), "Price Cross Below MA", "Price crossed below moving average")
+alertcondition(priceAboveMA and not priceAboveMA[1], "Price Now Above MA", "Price is now above MA")
+alertcondition(priceBelowMA and not priceBelowMA[1], "Price Now Below MA", "Price is now below MA")
+
+// ============================================================================
+// ALERT CONDITIONS - RSI
+// ============================================================================
+alertcondition(ta.crossover(rsi, rsiOversold), "RSI Exit Oversold", "RSI crossed above oversold level")
+alertcondition(ta.crossunder(rsi, rsiOverbought), "RSI Exit Overbought", "RSI crossed below overbought level")
+alertcondition(ta.crossunder(rsi, rsiOversold), "RSI Enter Oversold", "RSI crossed into oversold zone")
+alertcondition(ta.crossover(rsi, rsiOverbought), "RSI Enter Overbought", "RSI crossed into overbought zone")
+alertcondition(rsi < rsiOversold, "RSI Oversold", "RSI is in oversold zone")
+alertcondition(rsi > rsiOverbought, "RSI Overbought", "RSI is in overbought zone")
+
+// ============================================================================
+// ALERT CONDITIONS - CANDLE PATTERNS
+// ============================================================================
+alertcondition(bullishEngulfing, "Bullish Engulfing", "Bullish engulfing candle pattern")
+alertcondition(bearishEngulfing, "Bearish Engulfing", "Bearish engulfing candle pattern")
+alertcondition(doji, "Doji", "Doji candle detected")
+alertcondition(hammer, "Hammer", "Hammer candle pattern")
+alertcondition(shootingStar, "Shooting Star", "Shooting star candle pattern")
+
+// ============================================================================
+// ALERT CONDITIONS - VOLUME
+// ============================================================================
+alertcondition(volumeSpike, "Volume Spike", "Volume is " + str.tostring(volumeMultiplier) + "x above average")
+alertcondition(volumeSpike and close > open, "Bullish Volume Spike", "High volume bullish candle")
+alertcondition(volumeSpike and close < open, "Bearish Volume Spike", "High volume bearish candle")
+
+// ============================================================================
+// ALERT CONDITIONS - PRICE ACTION
+// ============================================================================
+alertcondition(newHigh, "New 20-bar High", "Price made a new 20-bar high")
+alertcondition(newLow, "New 20-bar Low", "Price made a new 20-bar low")
+alertcondition(high > ta.highest(high[1], 50), "New 50-bar High", "Price made a new 50-bar high")
+alertcondition(low < ta.lowest(low[1], 50), "New 50-bar Low", "Price made a new 50-bar low")
+
+// ============================================================================
+// ALERT CONDITIONS - TIME
+// ============================================================================
+alertcondition(isAlertTime, "Scheduled Alert", "Scheduled time alert triggered")
+alertcondition(ta.change(time("D")) != 0, "New Day", "New trading day started")
+alertcondition(ta.change(time("W")) != 0, "New Week", "New trading week started")
+alertcondition(ta.change(time("M")) != 0, "New Month", "New trading month started")
+
+// ============================================================================
+// ALERT CONDITIONS - COMPOSITE
+// ============================================================================
+alertcondition(ta.crossover(close, ma) and rsi < 50, "MA Cross + RSI Low", "Price crossed MA with RSI below 50")
+alertcondition(ta.crossunder(close, ma) and rsi > 50, "MA Cross Down + RSI High", "Price crossed below MA with RSI above 50")
+alertcondition(bullishEngulfing and volumeSpike, "Bullish Engulf + Volume", "Bullish engulfing with high volume")
+alertcondition(bearishEngulfing and volumeSpike, "Bearish Engulf + Volume", "Bearish engulfing with high volume")
+alertcondition(ta.crossover(rsi, rsiOversold) and priceAboveMA, "RSI Exit OS + Above MA", "RSI exiting oversold while price above MA")

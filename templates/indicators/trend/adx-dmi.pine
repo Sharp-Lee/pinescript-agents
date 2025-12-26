@@ -1,0 +1,125 @@
+//@version=6
+indicator("ADX / DMI", shorttitle="ADX", overlay=false)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// ADX Settings
+adxLength = input.int(14, "ADX Length", minval=1, group="ADX Settings")
+diLength = input.int(14, "DI Length", minval=1, group="ADX Settings")
+
+// Levels
+strongTrend = input.int(25, "Strong Trend Level", minval=0, maxval=100, group="Levels", tooltip="ADX above this indicates strong trend")
+veryStrongTrend = input.int(40, "Very Strong Trend", minval=0, maxval=100, group="Levels")
+
+// Visual Settings
+showDI = input.bool(true, "Show DI Lines", group="Visual")
+showADX = input.bool(true, "Show ADX Line", group="Visual")
+showHistogram = input.bool(false, "Show DI Histogram", group="Visual")
+showSignals = input.bool(true, "Show Crossover Signals", group="Visual")
+highlightTrend = input.bool(true, "Highlight Strong Trend", group="Visual")
+
+// Colors
+adxColor = input.color(color.yellow, "ADX Color", group="Colors")
+diPlusColor = input.color(color.green, "+DI Color", group="Colors")
+diMinusColor = input.color(color.red, "-DI Color", group="Colors")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// True Range
+trueRange = ta.tr
+
+// +DM and -DM
+upMove = high - high[1]
+downMove = low[1] - low
+plusDM = upMove > downMove and upMove > 0 ? upMove : 0
+minusDM = downMove > upMove and downMove > 0 ? downMove : 0
+
+// Smoothed TR, +DM, -DM
+smoothedTR = ta.rma(trueRange, diLength)
+smoothedPlusDM = ta.rma(plusDM, diLength)
+smoothedMinusDM = ta.rma(minusDM, diLength)
+
+// +DI and -DI
+diPlus = smoothedPlusDM / smoothedTR * 100
+diMinus = smoothedMinusDM / smoothedTR * 100
+
+// DX and ADX
+dx = math.abs(diPlus - diMinus) / (diPlus + diMinus) * 100
+adx = ta.rma(dx, adxLength)
+
+// Crossovers
+bullishCross = ta.crossover(diPlus, diMinus)
+bearishCross = ta.crossunder(diPlus, diMinus)
+
+// Trend strength classification
+noTrend = adx < strongTrend
+strongTrendUp = adx >= strongTrend and diPlus > diMinus
+strongTrendDown = adx >= strongTrend and diMinus > diPlus
+veryStrong = adx >= veryStrongTrend
+
+// ADX turning points
+adxRising = adx > adx[1]
+adxFalling = adx < adx[1]
+
+// DI spread (trend momentum)
+diSpread = diPlus - diMinus
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// DI Lines
+plot(showDI ? diPlus : na, "+DI", color=diPlusColor, linewidth=2)
+plot(showDI ? diMinus : na, "-DI", color=diMinusColor, linewidth=2)
+
+// DI Histogram
+plot(showHistogram ? diSpread : na, "DI Spread", color=diSpread > 0 ? diPlusColor : diMinusColor, style=plot.style_columns)
+
+// ADX Line
+plot(showADX ? adx : na, "ADX", color=adxColor, linewidth=2)
+
+// Level lines
+hline(strongTrend, "Strong Trend", color=color.gray, linestyle=hline.style_dashed)
+hline(veryStrongTrend, "Very Strong", color=color.orange, linestyle=hline.style_dotted)
+hline(0, "Zero", color=color.gray, linestyle=hline.style_dotted)
+
+// Crossover signals
+plotshape(showSignals and bullishCross ? diPlus : na, "Bullish Cross", style=shape.triangleup, location=location.absolute, color=diPlusColor, size=size.small)
+plotshape(showSignals and bearishCross ? diMinus : na, "Bearish Cross", style=shape.triangledown, location=location.absolute, color=diMinusColor, size=size.small)
+
+// Strong trend background
+bgcolor(highlightTrend and strongTrendUp ? color.new(diPlusColor, 90) : na, title="Strong Uptrend")
+bgcolor(highlightTrend and strongTrendDown ? color.new(diMinusColor, 90) : na, title="Strong Downtrend")
+
+// Very strong trend markers
+plotshape(veryStrong and not veryStrong[1] ? adx : na, "Very Strong Start", style=shape.diamond, location=location.absolute, color=color.orange, size=size.tiny)
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+var table infoTable = table.new(position.top_right, 2, 5, bgcolor=color.new(color.black, 80))
+if barstate.islast
+    table.cell(infoTable, 0, 0, "ADX", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 0, str.tostring(adx, "#.##"), text_color=adxColor, text_size=size.small)
+    table.cell(infoTable, 0, 1, "+DI", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 1, str.tostring(diPlus, "#.##"), text_color=diPlusColor, text_size=size.small)
+    table.cell(infoTable, 0, 2, "-DI", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 2, str.tostring(diMinus, "#.##"), text_color=diMinusColor, text_size=size.small)
+    table.cell(infoTable, 0, 3, "Trend", text_color=color.white, text_size=size.small)
+    trendText = noTrend ? "NO TREND" : strongTrendUp ? "UPTREND" : "DOWNTREND"
+    trendColor = noTrend ? color.gray : strongTrendUp ? diPlusColor : diMinusColor
+    table.cell(infoTable, 1, 3, trendText, text_color=trendColor, text_size=size.small)
+    table.cell(infoTable, 0, 4, "Strength", text_color=color.white, text_size=size.small)
+    strengthText = veryStrong ? "VERY STRONG" : adx >= strongTrend ? "STRONG" : "WEAK"
+    table.cell(infoTable, 1, 4, strengthText, text_color=veryStrong ? color.orange : adx >= strongTrend ? color.yellow : color.gray, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(bullishCross, "Bullish DI Cross", "+DI crossed above -DI")
+alertcondition(bearishCross, "Bearish DI Cross", "-DI crossed above +DI")
+alertcondition(ta.crossover(adx, strongTrend), "ADX Strong Trend", "ADX crossed above strong trend level")
+alertcondition(ta.crossunder(adx, strongTrend), "ADX Weak Trend", "ADX crossed below strong trend level")
+alertcondition(bullishCross and adx > strongTrend, "Strong Bullish Signal", "Bullish cross with strong ADX")
+alertcondition(bearishCross and adx > strongTrend, "Strong Bearish Signal", "Bearish cross with strong ADX")

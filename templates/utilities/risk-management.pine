@@ -1,0 +1,178 @@
+//@version=6
+indicator("Risk Management Calculator", shorttitle="Risk Calc", overlay=true)
+
+// ============================================================================
+// DESCRIPTION
+// ============================================================================
+// Comprehensive risk management tool for calculating position sizes,
+// stop losses, take profits, and risk/reward ratios.
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// Account Settings
+accountSize = input.float(10000, "Account Size ($)", minval=100, group="Account", tooltip="Total account balance")
+riskPercent = input.float(1.0, "Risk per Trade (%)", minval=0.1, maxval=10, step=0.1, group="Account", tooltip="Maximum risk per trade as percentage of account")
+maxDrawdown = input.float(20, "Max Drawdown (%)", minval=1, maxval=50, group="Account", tooltip="Maximum acceptable drawdown")
+
+// Position Settings
+entryPrice = input.float(0, "Entry Price", group="Position", tooltip="Leave at 0 to use current price")
+stopLossPrice = input.float(0, "Stop Loss Price", group="Position", tooltip="Leave at 0 for auto calculation")
+takeProfitPrice = input.float(0, "Take Profit Price", group="Position", tooltip="Leave at 0 for auto calculation")
+
+// Auto Stop Loss Settings
+autoSLMethod = input.string("ATR", "Auto SL Method", options=["ATR", "Percent", "Swing", "Fixed"], group="Auto Stop Loss")
+atrLength = input.int(14, "ATR Length", minval=1, group="Auto Stop Loss")
+atrMultiplier = input.float(2.0, "ATR Multiplier", minval=0.5, step=0.1, group="Auto Stop Loss")
+percentSL = input.float(2.0, "Percent SL (%)", minval=0.1, step=0.1, group="Auto Stop Loss")
+swingLookback = input.int(10, "Swing Lookback", minval=1, group="Auto Stop Loss")
+fixedSL = input.float(100, "Fixed Points SL", minval=1, group="Auto Stop Loss")
+
+// Take Profit Settings
+rrRatio = input.float(2.0, "Risk:Reward Ratio", minval=0.5, step=0.5, group="Take Profit", tooltip="Target R:R for take profit calculation")
+useMultipleTP = input.bool(false, "Use Multiple TPs", group="Take Profit")
+tp1Percent = input.float(50, "TP1 Exit %", minval=10, maxval=90, group="Take Profit", tooltip="Percentage to exit at TP1")
+
+// Visual Settings
+showLines = input.bool(true, "Show Price Lines", group="Visual")
+showLabels = input.bool(true, "Show Price Labels", group="Visual")
+showTable = input.bool(true, "Show Info Table", group="Visual")
+positionSide = input.string("Long", "Position Side", options=["Long", "Short"], group="Visual")
+
+// Colors
+entryColor = input.color(color.blue, "Entry Color", group="Colors")
+slColor = input.color(color.red, "Stop Loss Color", group="Colors")
+tpColor = input.color(color.green, "Take Profit Color", group="Colors")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// Use current price if entry not specified
+actualEntry = entryPrice > 0 ? entryPrice : close
+
+// ATR for stop loss
+atr = ta.atr(atrLength)
+
+// Calculate stop loss based on method
+calcStopLoss() =>
+    if stopLossPrice > 0
+        stopLossPrice
+    else
+        switch autoSLMethod
+            "ATR" => positionSide == "Long" ? actualEntry - atr * atrMultiplier : actualEntry + atr * atrMultiplier
+            "Percent" => positionSide == "Long" ? actualEntry * (1 - percentSL / 100) : actualEntry * (1 + percentSL / 100)
+            "Swing" => positionSide == "Long" ? ta.lowest(low, swingLookback) : ta.highest(high, swingLookback)
+            "Fixed" => positionSide == "Long" ? actualEntry - fixedSL * syminfo.mintick : actualEntry + fixedSL * syminfo.mintick
+
+actualSL = calcStopLoss()
+
+// Risk per share
+riskPerShare = math.abs(actualEntry - actualSL)
+
+// Position size calculation
+riskAmount = accountSize * (riskPercent / 100)
+positionSize = riskPerShare > 0 ? riskAmount / riskPerShare : 0
+positionValue = positionSize * actualEntry
+
+// Take profit calculation
+tpDistance = riskPerShare * rrRatio
+actualTP = takeProfitPrice > 0 ? takeProfitPrice : (positionSide == "Long" ? actualEntry + tpDistance : actualEntry - tpDistance)
+tp1Price = positionSide == "Long" ? actualEntry + (tpDistance * 0.5) : actualEntry - (tpDistance * 0.5)
+
+// Risk/Reward calculation
+actualRR = riskPerShare > 0 ? math.abs(actualTP - actualEntry) / riskPerShare : 0
+
+// Potential profit/loss
+potentialLoss = riskAmount
+potentialProfit = riskAmount * actualRR
+
+// Break-even after TP1 (if using multiple TPs)
+remainingPosition = useMultipleTP ? positionSize * (1 - tp1Percent / 100) : positionSize
+breakEvenPrice = useMultipleTP ? (positionSide == "Long" ? actualEntry + (tp1Price - actualEntry) * (tp1Percent / 100) / (1 - tp1Percent / 100) : actualEntry - (actualEntry - tp1Price) * (tp1Percent / 100) / (1 - tp1Percent / 100)) : actualEntry
+
+// Maximum trades before max drawdown
+maxTrades = riskPercent > 0 ? math.floor(maxDrawdown / riskPercent) : 0
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// Entry line
+plot(showLines ? actualEntry : na, "Entry", color=entryColor, linewidth=2, style=plot.style_linebr)
+
+// Stop loss line
+plot(showLines ? actualSL : na, "Stop Loss", color=slColor, linewidth=2, style=plot.style_linebr)
+
+// Take profit line(s)
+plot(showLines ? actualTP : na, "Take Profit", color=tpColor, linewidth=2, style=plot.style_linebr)
+plot(showLines and useMultipleTP ? tp1Price : na, "TP1", color=color.new(tpColor, 50), linewidth=1, style=plot.style_linebr)
+
+// Risk/Reward zones
+p1 = plot(showLines ? actualEntry : na, "Entry Fill", color=color.new(color.gray, 100), display=display.none)
+p2 = plot(showLines ? actualSL : na, "SL Fill", color=color.new(color.gray, 100), display=display.none)
+p3 = plot(showLines ? actualTP : na, "TP Fill", color=color.new(color.gray, 100), display=display.none)
+fill(p1, p2, color=color.new(slColor, 85), title="Risk Zone")
+fill(p1, p3, color=color.new(tpColor, 90), title="Reward Zone")
+
+// Labels
+if showLabels and barstate.islast
+    label.new(bar_index + 5, actualEntry, "Entry: " + str.tostring(actualEntry, "#.####"), color=entryColor, textcolor=color.white, style=label.style_label_left, size=size.small)
+    label.new(bar_index + 5, actualSL, "SL: " + str.tostring(actualSL, "#.####"), color=slColor, textcolor=color.white, style=label.style_label_left, size=size.small)
+    label.new(bar_index + 5, actualTP, "TP: " + str.tostring(actualTP, "#.####") + " (R:" + str.tostring(actualRR, "#.#") + ")", color=tpColor, textcolor=color.white, style=label.style_label_left, size=size.small)
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+var table infoTable = table.new(position.top_right, 2, 12, bgcolor=color.new(color.black, 80), border_width=1)
+
+if showTable and barstate.islast
+    // Header
+    table.cell(infoTable, 0, 0, "RISK MANAGEMENT", text_color=color.white, text_size=size.small, bgcolor=color.gray)
+    table.cell(infoTable, 1, 0, positionSide, text_color=positionSide == "Long" ? color.green : color.red, text_size=size.small, bgcolor=color.gray)
+
+    // Account
+    table.cell(infoTable, 0, 1, "Account Size", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 1, "$" + str.tostring(accountSize, "#,###"), text_color=color.white, text_size=size.tiny)
+
+    table.cell(infoTable, 0, 2, "Risk Amount", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 2, "$" + str.tostring(riskAmount, "#.##") + " (" + str.tostring(riskPercent, "#.#") + "%)", text_color=slColor, text_size=size.tiny)
+
+    // Position
+    table.cell(infoTable, 0, 3, "Entry Price", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 3, str.tostring(actualEntry, "#.####"), text_color=entryColor, text_size=size.tiny)
+
+    table.cell(infoTable, 0, 4, "Stop Loss", text_color=color.white, text_size=size.tiny)
+    slPercent = math.abs(actualSL - actualEntry) / actualEntry * 100
+    table.cell(infoTable, 1, 4, str.tostring(actualSL, "#.####") + " (-" + str.tostring(slPercent, "#.##") + "%)", text_color=slColor, text_size=size.tiny)
+
+    table.cell(infoTable, 0, 5, "Take Profit", text_color=color.white, text_size=size.tiny)
+    tpPercent = math.abs(actualTP - actualEntry) / actualEntry * 100
+    table.cell(infoTable, 1, 5, str.tostring(actualTP, "#.####") + " (+" + str.tostring(tpPercent, "#.##") + "%)", text_color=tpColor, text_size=size.tiny)
+
+    // Size
+    table.cell(infoTable, 0, 6, "Position Size", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 6, str.tostring(positionSize, "#.####") + " units", text_color=color.yellow, text_size=size.tiny)
+
+    table.cell(infoTable, 0, 7, "Position Value", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 7, "$" + str.tostring(positionValue, "#,###.##"), text_color=color.white, text_size=size.tiny)
+
+    // Risk/Reward
+    table.cell(infoTable, 0, 8, "Risk:Reward", text_color=color.white, text_size=size.tiny)
+    rrColor = actualRR >= 2 ? color.green : actualRR >= 1 ? color.yellow : color.red
+    table.cell(infoTable, 1, 8, "1:" + str.tostring(actualRR, "#.##"), text_color=rrColor, text_size=size.tiny)
+
+    table.cell(infoTable, 0, 9, "Potential Profit", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 9, "$" + str.tostring(potentialProfit, "#.##"), text_color=tpColor, text_size=size.tiny)
+
+    table.cell(infoTable, 0, 10, "Potential Loss", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 10, "$" + str.tostring(potentialLoss, "#.##"), text_color=slColor, text_size=size.tiny)
+
+    table.cell(infoTable, 0, 11, "Max Losing Trades", text_color=color.white, text_size=size.tiny)
+    table.cell(infoTable, 1, 11, str.tostring(maxTrades) + " before " + str.tostring(maxDrawdown, "#") + "% DD", text_color=color.orange, text_size=size.tiny)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(ta.crossover(close, actualEntry), "Price at Entry", "Price reached entry level")
+alertcondition(positionSide == "Long" ? close < actualSL : close > actualSL, "Stop Loss Hit", "Price hit stop loss level")
+alertcondition(positionSide == "Long" ? close > actualTP : close < actualTP, "Take Profit Hit", "Price hit take profit level")
+alertcondition(useMultipleTP and (positionSide == "Long" ? close > tp1Price : close < tp1Price), "TP1 Hit", "Price hit first take profit level")

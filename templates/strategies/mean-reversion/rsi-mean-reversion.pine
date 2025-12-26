@@ -1,0 +1,147 @@
+//@version=6
+strategy("RSI Mean Reversion Strategy", shorttitle="RSI MR", overlay=true, default_qty_type=strategy.percent_of_equity, default_qty_value=10, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0.1)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// RSI Settings
+rsiLength = input.int(14, "RSI Length", minval=1, group="RSI Settings")
+oversoldLevel = input.int(30, "Oversold Level", minval=0, maxval=50, group="RSI Settings")
+overboughtLevel = input.int(70, "Overbought Level", minval=50, maxval=100, group="RSI Settings")
+
+// Entry Settings
+entryMode = input.string("Cross", "Entry Mode", options=["Cross", "Threshold", "Extreme"], group="Entry", tooltip="Cross: enter on level cross, Threshold: enter when in zone, Extreme: enter on extreme values")
+extremeOS = input.int(20, "Extreme Oversold", minval=0, maxval=30, group="Entry")
+extremeOB = input.int(80, "Extreme Overbought", minval=70, maxval=100, group="Entry")
+
+// Exit Settings
+exitMode = input.string("RSI Exit", "Exit Mode", options=["RSI Exit", "Fixed Target", "Trailing"], group="Exit")
+exitLevel = input.int(50, "RSI Exit Level", minval=30, maxval=70, group="Exit", tooltip="Exit when RSI crosses this level")
+targetPercent = input.float(2.0, "Target %", minval=0.1, step=0.1, group="Exit")
+trailingPercent = input.float(1.5, "Trailing Stop %", minval=0.1, step=0.1, group="Exit")
+
+// Risk Management
+useStopLoss = input.bool(true, "Use Stop Loss", group="Risk")
+stopLossPercent = input.float(3.0, "Stop Loss %", minval=0.1, step=0.1, group="Risk")
+maxTrades = input.int(5, "Max Concurrent Trades", minval=1, group="Risk")
+
+// Filter Settings
+useTrendFilter = input.bool(false, "Use Trend Filter", group="Filters")
+trendLength = input.int(50, "Trend MA Length", minval=1, group="Filters")
+
+// Time Filter
+useTimeFilter = input.bool(false, "Use Time Filter", group="Time")
+startHour = input.int(9, "Start Hour", minval=0, maxval=23, group="Time")
+endHour = input.int(16, "End Hour", minval=0, maxval=23, group="Time")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+rsi = ta.rsi(close, rsiLength)
+trendMA = ta.sma(close, trendLength)
+
+// Time filter
+currentHour = hour(time)
+inTimeWindow = not useTimeFilter or (currentHour >= startHour and currentHour < endHour)
+
+// Trend filter
+uptrend = close > trendMA
+downtrend = close < trendMA
+trendOK = not useTrendFilter or true  // Disabled for mean reversion - we want counter-trend
+
+// Entry conditions based on mode
+longCondition = switch entryMode
+    "Cross" => ta.crossover(rsi, oversoldLevel)
+    "Threshold" => rsi < oversoldLevel and rsi > rsi[1]  // In zone and turning up
+    "Extreme" => rsi < extremeOS
+
+shortCondition = switch entryMode
+    "Cross" => ta.crossunder(rsi, overboughtLevel)
+    "Threshold" => rsi > overboughtLevel and rsi < rsi[1]  // In zone and turning down
+    "Extreme" => rsi > extremeOB
+
+// Apply filters
+canTrade = inTimeWindow and strategy.opentrades < maxTrades
+longEntry = longCondition and canTrade
+shortEntry = shortCondition and canTrade
+
+// Exit conditions based on mode
+longExit = switch exitMode
+    "RSI Exit" => ta.crossover(rsi, exitLevel)
+    "Fixed Target" => false  // Handled by strategy.exit
+    "Trailing" => false  // Handled by strategy.exit
+
+shortExit = switch exitMode
+    "RSI Exit" => ta.crossunder(rsi, exitLevel)
+    "Fixed Target" => false
+    "Trailing" => false
+
+// ============================================================================
+// STRATEGY EXECUTION
+// ============================================================================
+// Long entries
+if longEntry
+    strategy.entry("Long", strategy.long)
+
+// Short entries
+if shortEntry
+    strategy.entry("Short", strategy.short)
+
+// Exits based on mode
+if exitMode == "RSI Exit"
+    if longExit
+        strategy.close("Long", comment="RSI Exit")
+    if shortExit
+        strategy.close("Short", comment="RSI Exit")
+else if exitMode == "Fixed Target"
+    strategy.exit("Long Exit", "Long", profit=close * targetPercent / 100 / syminfo.mintick, loss=useStopLoss ? close * stopLossPercent / 100 / syminfo.mintick : na)
+    strategy.exit("Short Exit", "Short", profit=close * targetPercent / 100 / syminfo.mintick, loss=useStopLoss ? close * stopLossPercent / 100 / syminfo.mintick : na)
+else if exitMode == "Trailing"
+    strategy.exit("Long Trail", "Long", trail_points=close * trailingPercent / 100 / syminfo.mintick, trail_offset=close * trailingPercent / 200 / syminfo.mintick, loss=useStopLoss ? close * stopLossPercent / 100 / syminfo.mintick : na)
+    strategy.exit("Short Trail", "Short", trail_points=close * trailingPercent / 100 / syminfo.mintick, trail_offset=close * trailingPercent / 200 / syminfo.mintick, loss=useStopLoss ? close * stopLossPercent / 100 / syminfo.mintick : na)
+
+// Stop loss only (when no exit mode handles it)
+if useStopLoss and exitMode == "RSI Exit"
+    strategy.exit("Long SL", "Long", loss=close * stopLossPercent / 100 / syminfo.mintick)
+    strategy.exit("Short SL", "Short", loss=close * stopLossPercent / 100 / syminfo.mintick)
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// Entry signals
+plotshape(longEntry ? low : na, "Long Entry", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, text="L")
+plotshape(shortEntry ? high : na, "Short Entry", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, text="S")
+
+// Trend MA
+plot(useTrendFilter ? trendMA : na, "Trend MA", color=color.purple, linewidth=1)
+
+// Background for RSI zones
+bgcolor(rsi < oversoldLevel ? color.new(color.green, 90) : rsi > overboughtLevel ? color.new(color.red, 90) : na, title="RSI Zone")
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+var table infoTable = table.new(position.top_right, 2, 5, bgcolor=color.new(color.black, 80))
+if barstate.islast
+    table.cell(infoTable, 0, 0, "RSI", text_color=color.white, text_size=size.small)
+    rsiColor = rsi < oversoldLevel ? color.green : rsi > overboughtLevel ? color.red : color.white
+    table.cell(infoTable, 1, 0, str.tostring(rsi, "#.##"), text_color=rsiColor, text_size=size.small)
+    table.cell(infoTable, 0, 1, "Position", text_color=color.white, text_size=size.small)
+    posText = strategy.position_size > 0 ? "LONG" : strategy.position_size < 0 ? "SHORT" : "FLAT"
+    posColor = strategy.position_size > 0 ? color.green : strategy.position_size < 0 ? color.red : color.gray
+    table.cell(infoTable, 1, 1, posText, text_color=posColor, text_size=size.small)
+    table.cell(infoTable, 0, 2, "Trades", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 2, str.tostring(strategy.opentrades), text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 0, 3, "Win Rate", text_color=color.white, text_size=size.small)
+    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    table.cell(infoTable, 1, 3, str.tostring(winRate, "#.#") + "%", text_color=winRate > 50 ? color.green : color.red, text_size=size.small)
+    table.cell(infoTable, 0, 4, "Net P&L", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 4, str.tostring(strategy.netprofit, "#.##"), text_color=strategy.netprofit > 0 ? color.green : color.red, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(longEntry, "Long Entry Signal", "RSI Mean Reversion: Long Entry")
+alertcondition(shortEntry, "Short Entry Signal", "RSI Mean Reversion: Short Entry")
+alertcondition(longExit, "Long Exit Signal", "RSI Mean Reversion: Long Exit")
+alertcondition(shortExit, "Short Exit Signal", "RSI Mean Reversion: Short Exit")

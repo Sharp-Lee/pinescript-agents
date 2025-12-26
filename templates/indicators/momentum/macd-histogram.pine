@@ -1,0 +1,113 @@
+//@version=6
+indicator("MACD with Histogram Coloring", shorttitle="MACD+", overlay=false)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// MACD Settings
+fastLength = input.int(12, "Fast Length", minval=1, group="MACD Settings")
+slowLength = input.int(26, "Slow Length", minval=1, group="MACD Settings")
+signalLength = input.int(9, "Signal Smoothing", minval=1, group="MACD Settings")
+macdSource = input.source(close, "Source", group="MACD Settings")
+
+// MA Type
+maType = input.string("EMA", "MA Type", options=["EMA", "SMA", "WMA", "RMA"], group="MACD Settings", tooltip="Moving average type for MACD calculation")
+
+// Visual Settings
+showHistogram = input.bool(true, "Show Histogram", group="Visual")
+showCrossovers = input.bool(true, "Show Crossover Signals", group="Visual")
+showZeroCross = input.bool(true, "Show Zero Line Cross", group="Visual")
+histogramStyle = input.string("Gradient", "Histogram Style", options=["Gradient", "Simple", "Impulse"], group="Visual")
+
+// Colors
+macdColor = input.color(color.blue, "MACD Color", group="Colors")
+signalColor = input.color(color.orange, "Signal Color", group="Colors")
+histUpColor = input.color(color.green, "Histogram Up", group="Colors")
+histDownColor = input.color(color.red, "Histogram Down", group="Colors")
+
+// ============================================================================
+// FUNCTIONS
+// ============================================================================
+ma(source, length, type) =>
+    switch type
+        "EMA" => ta.ema(source, length)
+        "SMA" => ta.sma(source, length)
+        "WMA" => ta.wma(source, length)
+        "RMA" => ta.rma(source, length)
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+fastMA = ma(macdSource, fastLength, maType)
+slowMA = ma(macdSource, slowLength, maType)
+macdLine = fastMA - slowMA
+signalLine = ma(macdLine, signalLength, "EMA")
+histogram = macdLine - signalLine
+
+// Histogram coloring logic
+histColor = switch histogramStyle
+    "Gradient" => histogram >= 0 ? (histogram > histogram[1] ? color.new(histUpColor, 0) : color.new(histUpColor, 50)) : (histogram < histogram[1] ? color.new(histDownColor, 0) : color.new(histDownColor, 50))
+    "Simple" => histogram >= 0 ? histUpColor : histDownColor
+    "Impulse" => histogram >= 0 and histogram > histogram[1] ? histUpColor : histogram >= 0 and histogram <= histogram[1] ? color.new(histUpColor, 50) : histogram < 0 and histogram < histogram[1] ? histDownColor : color.new(histDownColor, 50)
+
+// Crossover detection
+bullishCross = ta.crossover(macdLine, signalLine)
+bearishCross = ta.crossunder(macdLine, signalLine)
+zeroCrossUp = ta.crossover(macdLine, 0)
+zeroCrossDown = ta.crossunder(macdLine, 0)
+
+// Divergence detection (simplified)
+priceHigh = ta.highest(high, 5)
+priceLow = ta.lowest(low, 5)
+macdHigh = ta.highest(macdLine, 5)
+macdLow = ta.lowest(macdLine, 5)
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// Histogram
+plot(showHistogram ? histogram : na, "Histogram", color=histColor, style=plot.style_columns)
+
+// MACD and Signal lines
+plot(macdLine, "MACD", color=macdColor, linewidth=2)
+plot(signalLine, "Signal", color=signalColor, linewidth=1)
+
+// Zero line
+hline(0, "Zero", color=color.gray, linestyle=hline.style_dashed)
+
+// Crossover signals
+plotshape(showCrossovers and bullishCross ? signalLine : na, "Bullish Cross", style=shape.triangleup, location=location.absolute, color=color.green, size=size.small)
+plotshape(showCrossovers and bearishCross ? signalLine : na, "Bearish Cross", style=shape.triangledown, location=location.absolute, color=color.red, size=size.small)
+
+// Zero line cross
+plotshape(showZeroCross and zeroCrossUp ? 0 : na, "Zero Cross Up", style=shape.circle, location=location.absolute, color=color.green, size=size.tiny)
+plotshape(showZeroCross and zeroCrossDown ? 0 : na, "Zero Cross Down", style=shape.circle, location=location.absolute, color=color.red, size=size.tiny)
+
+// Background for strong trends
+bgcolor(macdLine > 0 and macdLine > signalLine ? color.new(color.green, 95) : na, title="Bullish Trend")
+bgcolor(macdLine < 0 and macdLine < signalLine ? color.new(color.red, 95) : na, title="Bearish Trend")
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+var table infoTable = table.new(position.top_right, 2, 4, bgcolor=color.new(color.black, 80))
+if barstate.islast
+    table.cell(infoTable, 0, 0, "MACD", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 0, str.tostring(macdLine, "#.####"), text_color=macdLine > 0 ? color.green : color.red, text_size=size.small)
+    table.cell(infoTable, 0, 1, "Signal", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 1, str.tostring(signalLine, "#.####"), text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 0, 2, "Histogram", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 2, str.tostring(histogram, "#.####"), text_color=histogram > 0 ? color.green : color.red, text_size=size.small)
+    table.cell(infoTable, 0, 3, "Trend", text_color=color.white, text_size=size.small)
+    trendText = macdLine > 0 and macdLine > signalLine ? "Strong Bull" : macdLine > 0 ? "Weak Bull" : macdLine < 0 and macdLine < signalLine ? "Strong Bear" : "Weak Bear"
+    table.cell(infoTable, 1, 3, trendText, text_color=macdLine > 0 ? color.green : color.red, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(bullishCross, "MACD Bullish Cross", "MACD crossed above Signal line")
+alertcondition(bearishCross, "MACD Bearish Cross", "MACD crossed below Signal line")
+alertcondition(zeroCrossUp, "MACD Above Zero", "MACD crossed above zero line")
+alertcondition(zeroCrossDown, "MACD Below Zero", "MACD crossed below zero line")
+alertcondition(histogram > 0 and histogram > histogram[1] and histogram[1] <= histogram[2], "Histogram Turning Up", "MACD histogram starting to rise")
+alertcondition(histogram < 0 and histogram < histogram[1] and histogram[1] >= histogram[2], "Histogram Turning Down", "MACD histogram starting to fall")

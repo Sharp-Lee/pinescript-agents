@@ -1,0 +1,123 @@
+//@version=6
+indicator("EMA Crossover System", shorttitle="EMA Cross", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// EMA Settings
+fastLength = input.int(9, "Fast EMA", minval=1, group="EMA Settings", tooltip="Period for fast EMA")
+slowLength = input.int(21, "Slow EMA", minval=1, group="EMA Settings", tooltip="Period for slow EMA")
+trendLength = input.int(50, "Trend EMA", minval=1, group="EMA Settings", tooltip="Period for trend filter EMA")
+emaSource = input.source(close, "Source", group="EMA Settings")
+
+// Filter Settings
+useTrendFilter = input.bool(true, "Use Trend Filter", group="Filters", tooltip="Only show signals in direction of trend")
+useVolumeFilter = input.bool(false, "Use Volume Filter", group="Filters", tooltip="Require above average volume")
+volumeLength = input.int(20, "Volume MA Length", minval=1, group="Filters")
+volumeMult = input.float(1.0, "Volume Multiplier", minval=0.1, step=0.1, group="Filters")
+
+// Visual Settings
+showFastEMA = input.bool(true, "Show Fast EMA", group="Visual")
+showSlowEMA = input.bool(true, "Show Slow EMA", group="Visual")
+showTrendEMA = input.bool(true, "Show Trend EMA", group="Visual")
+showSignals = input.bool(true, "Show Crossover Signals", group="Visual")
+showCloud = input.bool(true, "Show EMA Cloud", group="Visual")
+highlightTrend = input.bool(true, "Highlight Trend", group="Visual")
+
+// Colors
+fastColor = input.color(color.blue, "Fast EMA Color", group="Colors")
+slowColor = input.color(color.orange, "Slow EMA Color", group="Colors")
+trendColor = input.color(color.purple, "Trend EMA Color", group="Colors")
+bullColor = input.color(color.green, "Bullish Color", group="Colors")
+bearColor = input.color(color.red, "Bearish Color", group="Colors")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// EMAs
+fastEMA = ta.ema(emaSource, fastLength)
+slowEMA = ta.ema(emaSource, slowLength)
+trendEMA = ta.ema(emaSource, trendLength)
+
+// Volume filter
+volumeMA = ta.sma(volume, volumeLength)
+volumeCondition = not useVolumeFilter or volume > volumeMA * volumeMult
+
+// Trend detection
+uptrend = close > trendEMA
+downtrend = close < trendEMA
+trendCondition = not useTrendFilter or (uptrend or downtrend)
+
+// Crossover detection
+bullishCross = ta.crossover(fastEMA, slowEMA)
+bearishCross = ta.crossunder(fastEMA, slowEMA)
+
+// Filtered signals
+bullSignal = bullishCross and volumeCondition and (not useTrendFilter or uptrend)
+bearSignal = bearishCross and volumeCondition and (not useTrendFilter or downtrend)
+
+// Trend strength (distance from trend EMA)
+trendStrength = (close - trendEMA) / trendEMA * 100
+
+// EMA alignment
+alignedBullish = fastEMA > slowEMA and slowEMA > trendEMA
+alignedBearish = fastEMA < slowEMA and slowEMA < trendEMA
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// EMAs
+plot(showFastEMA ? fastEMA : na, "Fast EMA", color=fastColor, linewidth=2)
+plot(showSlowEMA ? slowEMA : na, "Slow EMA", color=slowColor, linewidth=2)
+plot(showTrendEMA ? trendEMA : na, "Trend EMA", color=trendColor, linewidth=1, style=plot.style_circles)
+
+// EMA Cloud
+p1 = plot(showCloud ? fastEMA : na, "Cloud Fast", color=color.new(color.gray, 100), display=display.none)
+p2 = plot(showCloud ? slowEMA : na, "Cloud Slow", color=color.new(color.gray, 100), display=display.none)
+cloudColor = fastEMA > slowEMA ? color.new(bullColor, 85) : color.new(bearColor, 85)
+fill(p1, p2, color=showCloud ? cloudColor : na, title="EMA Cloud")
+
+// Trend background
+bgcolor(highlightTrend and alignedBullish ? color.new(bullColor, 95) : na, title="Bullish Alignment")
+bgcolor(highlightTrend and alignedBearish ? color.new(bearColor, 95) : na, title="Bearish Alignment")
+
+// Crossover signals
+plotshape(showSignals and bullSignal ? low : na, "Bull Signal", style=shape.triangleup, location=location.belowbar, color=bullColor, size=size.small, text="BUY")
+plotshape(showSignals and bearSignal ? high : na, "Bear Signal", style=shape.triangledown, location=location.abovebar, color=bearColor, size=size.small, text="SELL")
+
+// Signal dots on EMA (for unfiltered crosses)
+plotshape(showSignals and bullishCross and not bullSignal ? fastEMA : na, "Filtered Bull", style=shape.circle, location=location.absolute, color=color.new(bullColor, 50), size=size.tiny)
+plotshape(showSignals and bearishCross and not bearSignal ? fastEMA : na, "Filtered Bear", style=shape.circle, location=location.absolute, color=color.new(bearColor, 50), size=size.tiny)
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+var table infoTable = table.new(position.top_right, 2, 6, bgcolor=color.new(color.black, 80))
+if barstate.islast
+    table.cell(infoTable, 0, 0, "Fast EMA", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 0, str.tostring(fastEMA, "#.####"), text_color=fastColor, text_size=size.small)
+    table.cell(infoTable, 0, 1, "Slow EMA", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 1, str.tostring(slowEMA, "#.####"), text_color=slowColor, text_size=size.small)
+    table.cell(infoTable, 0, 2, "Trend EMA", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 2, str.tostring(trendEMA, "#.####"), text_color=trendColor, text_size=size.small)
+    table.cell(infoTable, 0, 3, "Trend", text_color=color.white, text_size=size.small)
+    trendText = alignedBullish ? "BULLISH" : alignedBearish ? "BEARISH" : "MIXED"
+    trendTextColor = alignedBullish ? bullColor : alignedBearish ? bearColor : color.gray
+    table.cell(infoTable, 1, 3, trendText, text_color=trendTextColor, text_size=size.small)
+    table.cell(infoTable, 0, 4, "Strength", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 4, str.tostring(trendStrength, "#.##") + "%", text_color=trendStrength > 0 ? bullColor : bearColor, text_size=size.small)
+    table.cell(infoTable, 0, 5, "Signal", text_color=color.white, text_size=size.small)
+    signalText = fastEMA > slowEMA ? "LONG" : "SHORT"
+    table.cell(infoTable, 1, 5, signalText, text_color=fastEMA > slowEMA ? bullColor : bearColor, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(bullSignal, "EMA Bullish Cross", "EMA bullish crossover with all filters passed")
+alertcondition(bearSignal, "EMA Bearish Cross", "EMA bearish crossover with all filters passed")
+alertcondition(bullishCross, "EMA Cross Up (Unfiltered)", "Fast EMA crossed above Slow EMA")
+alertcondition(bearishCross, "EMA Cross Down (Unfiltered)", "Fast EMA crossed below Slow EMA")
+alertcondition(alignedBullish and not alignedBullish[1], "Bullish Alignment", "All EMAs aligned bullishly")
+alertcondition(alignedBearish and not alignedBearish[1], "Bearish Alignment", "All EMAs aligned bearishly")
+alertcondition(ta.crossover(close, trendEMA), "Price Above Trend", "Price crossed above trend EMA")
+alertcondition(ta.crossunder(close, trendEMA), "Price Below Trend", "Price crossed below trend EMA")

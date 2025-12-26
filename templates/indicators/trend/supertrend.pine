@@ -1,0 +1,99 @@
+//@version=6
+indicator("Supertrend", shorttitle="ST", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// Supertrend Settings
+atrPeriod = input.int(10, "ATR Period", minval=1, group="Supertrend Settings", tooltip="Period for ATR calculation")
+atrMultiplier = input.float(3.0, "ATR Multiplier", minval=0.1, step=0.1, group="Supertrend Settings", tooltip="Multiplier for ATR bands")
+changeATR = input.bool(true, "Use Custom ATR", group="Supertrend Settings", tooltip="Use custom ATR calculation vs built-in")
+
+// Visual Settings
+showSignals = input.bool(true, "Show Buy/Sell Signals", group="Visual")
+showTrendBand = input.bool(true, "Show Trend Band", group="Visual")
+highlightTrend = input.bool(true, "Highlight Trend Background", group="Visual")
+
+// Colors
+upTrendColor = input.color(color.green, "Uptrend Color", group="Colors")
+downTrendColor = input.color(color.red, "Downtrend Color", group="Colors")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// ATR calculation
+atr2 = ta.sma(ta.tr, atrPeriod)
+atr = changeATR ? ta.atr(atrPeriod) : atr2
+
+// Basic bands
+src = (high + low) / 2
+upperBand = src + atrMultiplier * atr
+lowerBand = src - atrMultiplier * atr
+
+// Supertrend calculation
+var float supertrend = na
+var int direction = 1
+
+prevSupertrend = supertrend[1]
+prevUpperBand = upperBand[1]
+prevLowerBand = lowerBand[1]
+
+// Adjust bands
+lowerBand := lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
+upperBand := upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand
+
+// Direction and Supertrend value
+if na(prevSupertrend)
+    direction := 1
+else if prevSupertrend == prevUpperBand
+    direction := close > upperBand ? -1 : 1
+else
+    direction := close < lowerBand ? 1 : -1
+
+supertrend := direction == -1 ? lowerBand : upperBand
+
+// Trend change detection
+trendUp = direction == -1
+trendDown = direction == 1
+buySignal = trendUp and not trendUp[1]
+sellSignal = trendDown and not trendDown[1]
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// Supertrend line
+supertrendColor = trendUp ? upTrendColor : downTrendColor
+plot(showTrendBand ? supertrend : na, "Supertrend", color=supertrendColor, linewidth=2, style=plot.style_linebr)
+
+// Buy/Sell signals
+plotshape(showSignals and buySignal ? supertrend : na, "Buy Signal", style=shape.triangleup, location=location.absolute, color=upTrendColor, size=size.small, text="BUY", textcolor=color.white)
+plotshape(showSignals and sellSignal ? supertrend : na, "Sell Signal", style=shape.triangledown, location=location.absolute, color=downTrendColor, size=size.small, text="SELL", textcolor=color.white)
+
+// Trend background
+bgcolor(highlightTrend and trendUp ? color.new(upTrendColor, 90) : na, title="Uptrend Background")
+bgcolor(highlightTrend and trendDown ? color.new(downTrendColor, 90) : na, title="Downtrend Background")
+
+// Trend ribbon (optional visualization)
+plot(showTrendBand ? (trendUp ? lowerBand : na) : na, "Support Band", color=color.new(upTrendColor, 70), style=plot.style_linebr, linewidth=1)
+plot(showTrendBand ? (trendDown ? upperBand : na) : na, "Resistance Band", color=color.new(downTrendColor, 70), style=plot.style_linebr, linewidth=1)
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+var table infoTable = table.new(position.top_right, 2, 3, bgcolor=color.new(color.black, 80))
+if barstate.islast
+    table.cell(infoTable, 0, 0, "Trend", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 0, trendUp ? "BULLISH" : "BEARISH", text_color=trendUp ? upTrendColor : downTrendColor, text_size=size.small)
+    table.cell(infoTable, 0, 1, "Supertrend", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 1, str.tostring(supertrend, "#.##"), text_color=supertrendColor, text_size=size.small)
+    table.cell(infoTable, 0, 2, "Distance", text_color=color.white, text_size=size.small)
+    distance = (close - supertrend) / close * 100
+    table.cell(infoTable, 1, 2, str.tostring(distance, "#.##") + "%", text_color=distance > 0 ? upTrendColor : downTrendColor, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(buySignal, "Supertrend Buy", "Supertrend turned bullish")
+alertcondition(sellSignal, "Supertrend Sell", "Supertrend turned bearish")
+alertcondition(trendUp, "Supertrend Bullish", "Supertrend is bullish")
+alertcondition(trendDown, "Supertrend Bearish", "Supertrend is bearish")

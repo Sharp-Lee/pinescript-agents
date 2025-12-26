@@ -1,0 +1,100 @@
+//@version=6
+indicator("Bollinger Bands with Squeeze", shorttitle="BB Squeeze", overlay=true)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// Bollinger Bands Settings
+bbLength = input.int(20, "BB Length", minval=1, group="Bollinger Bands", tooltip="Period for moving average and standard deviation")
+bbMult = input.float(2.0, "BB Multiplier", minval=0.1, step=0.1, group="Bollinger Bands", tooltip="Standard deviation multiplier")
+bbSource = input.source(close, "Source", group="Bollinger Bands")
+
+// Keltner Channel Settings (for squeeze detection)
+kcLength = input.int(20, "KC Length", minval=1, group="Keltner Channel", tooltip="Period for Keltner Channel EMA")
+kcMult = input.float(1.5, "KC Multiplier", minval=0.1, step=0.1, group="Keltner Channel", tooltip="ATR multiplier for Keltner Channel")
+kcAtrLength = input.int(10, "KC ATR Length", minval=1, group="Keltner Channel")
+
+// Visual Settings
+showKC = input.bool(false, "Show Keltner Channel", group="Visual")
+showSqueeze = input.bool(true, "Show Squeeze Indicator", group="Visual")
+showMomentum = input.bool(true, "Show Momentum Histogram", group="Visual")
+
+// Colors
+bbColor = input.color(color.blue, "BB Color", group="Colors")
+kcColor = input.color(color.orange, "KC Color", group="Colors")
+squeezeOnColor = input.color(color.red, "Squeeze On", group="Colors")
+squeezeOffColor = input.color(color.green, "Squeeze Off", group="Colors")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+// Bollinger Bands
+bbBasis = ta.sma(bbSource, bbLength)
+bbDev = bbMult * ta.stdev(bbSource, bbLength)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+
+// Keltner Channel
+kcBasis = ta.ema(bbSource, kcLength)
+kcRange = ta.atr(kcAtrLength)
+kcUpper = kcBasis + kcRange * kcMult
+kcLower = kcBasis - kcRange * kcMult
+
+// Squeeze Detection: BB inside KC = squeeze
+sqzOn = bbLower > kcLower and bbUpper < kcUpper
+sqzOff = bbLower < kcLower or bbUpper > kcUpper
+
+// Momentum (for histogram)
+momentum = ta.linreg(bbSource - math.avg(bbUpper, bbLower), bbLength, 0)
+momUp = momentum > momentum[1]
+
+// Band Width (volatility measure)
+bbWidth = (bbUpper - bbLower) / bbBasis * 100
+
+// %B (position within bands)
+percentB = (bbSource - bbLower) / (bbUpper - bbLower)
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// Bollinger Bands
+plot(bbBasis, "BB Basis", color=bbColor, linewidth=1)
+p1 = plot(bbUpper, "BB Upper", color=bbColor)
+p2 = plot(bbLower, "BB Lower", color=bbColor)
+fill(p1, p2, color=color.new(bbColor, 90), title="BB Fill")
+
+// Keltner Channel (optional)
+plot(showKC ? kcUpper : na, "KC Upper", color=kcColor, linewidth=1)
+plot(showKC ? kcLower : na, "KC Lower", color=kcColor, linewidth=1)
+
+// Squeeze dots on basis line
+plotshape(showSqueeze and sqzOn ? bbBasis : na, "Squeeze On", style=shape.circle, location=location.absolute, color=squeezeOnColor, size=size.tiny)
+plotshape(showSqueeze and sqzOff and sqzOn[1] ? bbBasis : na, "Squeeze Fire", style=shape.diamond, location=location.absolute, color=squeezeOffColor, size=size.small)
+
+// Band touch signals
+plotshape(ta.crossover(high, bbUpper) ? bbUpper : na, "Touch Upper", style=shape.triangledown, location=location.absolute, color=color.red, size=size.tiny)
+plotshape(ta.crossunder(low, bbLower) ? bbLower : na, "Touch Lower", style=shape.triangleup, location=location.absolute, color=color.green, size=size.tiny)
+
+// ============================================================================
+// INFO TABLE
+// ============================================================================
+var table infoTable = table.new(position.top_right, 2, 4, bgcolor=color.new(color.black, 80))
+if barstate.islast
+    table.cell(infoTable, 0, 0, "BB Width", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 0, str.tostring(bbWidth, "#.##") + "%", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 0, 1, "%B", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 1, str.tostring(percentB, "#.##"), text_color=percentB > 1 ? color.red : percentB < 0 ? color.green : color.white, text_size=size.small)
+    table.cell(infoTable, 0, 2, "Squeeze", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 2, sqzOn ? "ON" : "OFF", text_color=sqzOn ? squeezeOnColor : squeezeOffColor, text_size=size.small)
+    table.cell(infoTable, 0, 3, "Momentum", text_color=color.white, text_size=size.small)
+    table.cell(infoTable, 1, 3, momentum > 0 ? "Bullish" : "Bearish", text_color=momentum > 0 ? color.green : color.red, text_size=size.small)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(sqzOff and sqzOn[1], "Squeeze Released", "Bollinger Bands Squeeze has released")
+alertcondition(sqzOn and not sqzOn[1], "Squeeze Started", "Bollinger Bands Squeeze has started")
+alertcondition(ta.crossover(high, bbUpper), "Price Above Upper Band", "Price crossed above upper Bollinger Band")
+alertcondition(ta.crossunder(low, bbLower), "Price Below Lower Band", "Price crossed below lower Bollinger Band")
+alertcondition(ta.crossover(close, bbBasis), "Price Cross Above Basis", "Price crossed above BB middle line")
+alertcondition(ta.crossunder(close, bbBasis), "Price Cross Below Basis", "Price crossed below BB middle line")

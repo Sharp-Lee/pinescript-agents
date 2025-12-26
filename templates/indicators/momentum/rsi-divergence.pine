@@ -1,0 +1,91 @@
+//@version=6
+indicator("RSI with Divergence Detection", shorttitle="RSI Div", overlay=false)
+
+// ============================================================================
+// INPUTS
+// ============================================================================
+// RSI Settings
+rsiLength = input.int(14, "RSI Length", minval=1, group="RSI Settings", tooltip="Period for RSI calculation")
+rsiSource = input.source(close, "Source", group="RSI Settings")
+
+// Levels
+oversoldLevel = input.int(30, "Oversold Level", minval=0, maxval=100, group="Levels")
+overboughtLevel = input.int(70, "Overbought Level", minval=0, maxval=100, group="Levels")
+
+// Divergence Settings
+pivotLookbackLeft = input.int(5, "Pivot Lookback Left", minval=1, group="Divergence", tooltip="Bars to the left for pivot detection")
+pivotLookbackRight = input.int(5, "Pivot Lookback Right", minval=1, group="Divergence", tooltip="Bars to the right for pivot detection")
+maxLookback = input.int(60, "Max Lookback Range", minval=10, group="Divergence", tooltip="Maximum bars to look back for divergence")
+minLookback = input.int(5, "Min Lookback Range", minval=1, group="Divergence", tooltip="Minimum bars to look back for divergence")
+
+// Visual Settings
+showBullishDiv = input.bool(true, "Show Bullish Divergence", group="Visual")
+showBearishDiv = input.bool(true, "Show Bearish Divergence", group="Visual")
+showHiddenDiv = input.bool(false, "Show Hidden Divergence", group="Visual")
+
+// Colors
+bullColor = input.color(color.green, "Bullish Color", group="Colors")
+bearColor = input.color(color.red, "Bearish Color", group="Colors")
+hiddenBullColor = input.color(color.new(color.green, 50), "Hidden Bullish Color", group="Colors")
+hiddenBearColor = input.color(color.new(color.red, 50), "Hidden Bearish Color", group="Colors")
+
+// ============================================================================
+// CALCULATIONS
+// ============================================================================
+rsiValue = ta.rsi(rsiSource, rsiLength)
+
+// Pivot detection
+pivotLow = ta.pivotlow(rsiValue, pivotLookbackLeft, pivotLookbackRight)
+pivotHigh = ta.pivothigh(rsiValue, pivotLookbackLeft, pivotLookbackRight)
+
+// ============================================================================
+// DIVERGENCE DETECTION FUNCTIONS
+// ============================================================================
+// Find previous pivot position
+_inRange(bool cond, int len) =>
+    bars = ta.barssince(cond)
+    minLookback <= bars and bars <= len
+
+// Regular Bullish: Price makes lower low, RSI makes higher low
+bullishDiv = showBullishDiv and pivotLow and _inRange(pivotLow[1], maxLookback) and rsiValue[pivotLookbackRight] > ta.valuewhen(pivotLow, rsiValue[pivotLookbackRight], 1) and low[pivotLookbackRight] < ta.valuewhen(pivotLow, low[pivotLookbackRight], 1)
+
+// Regular Bearish: Price makes higher high, RSI makes lower high
+bearishDiv = showBearishDiv and pivotHigh and _inRange(pivotHigh[1], maxLookback) and rsiValue[pivotLookbackRight] < ta.valuewhen(pivotHigh, rsiValue[pivotLookbackRight], 1) and high[pivotLookbackRight] > ta.valuewhen(pivotHigh, high[pivotLookbackRight], 1)
+
+// Hidden Bullish: Price makes higher low, RSI makes lower low (trend continuation)
+hiddenBullDiv = showHiddenDiv and pivotLow and _inRange(pivotLow[1], maxLookback) and rsiValue[pivotLookbackRight] < ta.valuewhen(pivotLow, rsiValue[pivotLookbackRight], 1) and low[pivotLookbackRight] > ta.valuewhen(pivotLow, low[pivotLookbackRight], 1)
+
+// Hidden Bearish: Price makes lower high, RSI makes higher high (trend continuation)
+hiddenBearDiv = showHiddenDiv and pivotHigh and _inRange(pivotHigh[1], maxLookback) and rsiValue[pivotLookbackRight] > ta.valuewhen(pivotHigh, rsiValue[pivotLookbackRight], 1) and high[pivotLookbackRight] < ta.valuewhen(pivotHigh, high[pivotLookbackRight], 1)
+
+// ============================================================================
+// PLOTS
+// ============================================================================
+// RSI Line
+plot(rsiValue, "RSI", color=color.blue, linewidth=2)
+
+// Level lines
+h1 = hline(oversoldLevel, "Oversold", color=color.green, linestyle=hline.style_dashed)
+h2 = hline(overboughtLevel, "Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(50, "Middle", color=color.gray, linestyle=hline.style_dotted)
+fill(h1, h2, color=color.new(color.purple, 95), title="RSI Band")
+
+// Divergence markers
+plotshape(bullishDiv ? rsiValue[pivotLookbackRight] : na, "Bullish Divergence", style=shape.labelup, location=location.absolute, color=bullColor, text="Bull", textcolor=color.white, offset=-pivotLookbackRight, size=size.small)
+plotshape(bearishDiv ? rsiValue[pivotLookbackRight] : na, "Bearish Divergence", style=shape.labeldown, location=location.absolute, color=bearColor, text="Bear", textcolor=color.white, offset=-pivotLookbackRight, size=size.small)
+plotshape(hiddenBullDiv ? rsiValue[pivotLookbackRight] : na, "Hidden Bullish", style=shape.triangleup, location=location.absolute, color=hiddenBullColor, offset=-pivotLookbackRight, size=size.tiny)
+plotshape(hiddenBearDiv ? rsiValue[pivotLookbackRight] : na, "Hidden Bearish", style=shape.triangledown, location=location.absolute, color=hiddenBearColor, offset=-pivotLookbackRight, size=size.tiny)
+
+// Background for OB/OS
+bgcolor(rsiValue > overboughtLevel ? color.new(color.red, 90) : na, title="Overbought Zone")
+bgcolor(rsiValue < oversoldLevel ? color.new(color.green, 90) : na, title="Oversold Zone")
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+alertcondition(bullishDiv, "Bullish Divergence", "RSI Bullish Divergence detected")
+alertcondition(bearishDiv, "Bearish Divergence", "RSI Bearish Divergence detected")
+alertcondition(hiddenBullDiv, "Hidden Bullish Divergence", "RSI Hidden Bullish Divergence detected")
+alertcondition(hiddenBearDiv, "Hidden Bearish Divergence", "RSI Hidden Bearish Divergence detected")
+alertcondition(ta.crossover(rsiValue, oversoldLevel), "RSI Oversold Exit", "RSI crossing above oversold")
+alertcondition(ta.crossunder(rsiValue, overboughtLevel), "RSI Overbought Exit", "RSI crossing below overbought")
