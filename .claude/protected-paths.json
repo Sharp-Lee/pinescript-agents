@@ -2,7 +2,7 @@
   "always_protected": [
     ".git/",
     ".claude/hooks/",
-    ".claude/agents/"
+    ".claude/skills/"
   ],
   "protected_when_locked": [
     "docs/",

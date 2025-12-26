@@ -14,10 +14,8 @@
   "author": "",
   "license": "MIT",
   "scripts": {
-    "validate": "python tools/syntax-validator.py",
-    "analyze": "python tools/performance-analyzer.py",
-    "debug": "python tools/debug-injector.py",
-    "backtest": "python tools/backtest-metrics.py"
+    "start": "./start",
+    "video": "python tools/video-analyzer.py"
   },
   "repository": {
     "type": "git",

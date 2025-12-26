@@ -44,7 +44,7 @@ else
     RELATIVE_PATH="${FILE_PATH#$PROJECT_ROOT/}"
     
     # Warn about critical system files
-    if [[ "$RELATIVE_PATH" == .claude/agents/* ]] || \
+    if [[ "$RELATIVE_PATH" == .claude/skills/* ]] || \
        [[ "$RELATIVE_PATH" == .claude/hooks/* ]]; then
         echo "⚠️  Warning: Modifying system file: $RELATIVE_PATH"
         echo "   This could affect system behavior. Proceed with caution."

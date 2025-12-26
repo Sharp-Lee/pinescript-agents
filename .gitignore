@@ -22,6 +22,12 @@ Thumbs.db
 .env.test.local
 .env.production.local
 
+# Python Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
 # Logs
 logs/
 *.log
@@ -49,3 +55,7 @@ temp/
 .claude/.state.json
 .claude/.last_session
 .claude/.lock_state
+.claude/.video_status
+
+# Test/Debug Scripts (developer-specific)
+run_analysis.py
